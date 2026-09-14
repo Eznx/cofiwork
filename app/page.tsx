@@ -1,21 +1,17 @@
 'use client';
 import { motion } from 'framer-motion';
-
 // ✅ Curva corregida con tipo para TypeScript
 const jetonEase = [0.16, 1, 0.3, 1] as [number, number, number, number];
-
 const fadeUp = {
   initial: { opacity: 0, y: 30 },
   whileInView: { opacity: 1, y: 0 },
   viewport: { once: true, margin: "-80px" },
   transition: { duration: 0.55, ease: jetonEase },
 };
-
 const WA_NUMBER = "5491166173514";
 const WA_TEXT = "Hola Nicolás, vi tu web. Quiero hablar sobre mi proyecto.";
 const WA_URL = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(WA_TEXT)}`;
 const INSTAGRAM_URL = "https://www.instagram.com/3zequielxlombardo/";
-
 const portfolio = [
   {
     name: "Desarrollo Web Profesional",
@@ -36,13 +32,11 @@ const portfolio = [
     image: "/foto3.jpeg",
   },
 ];
-
 const process = [
-  { n: "01", title: "Me contactas", description: "Me cuentas qué necesitas, sin formularios largos ni complicaciones." },
+  { n: "01", title: "Me contactas", description: "Me contas qué necesitas, sin formularios largos ni complicaciones." },
   { n: "02", title: "Ves la propuesta", description: "Definimos juntos la estructura y el diseño antes de avanzar." },
   { n: "03", title: "Queda lista", description: "Publicamos tu web y queda funcionando para recibir visitas." },
 ];
-
 const plans = [
   {
     name: "INICIO",
@@ -72,7 +66,6 @@ const plans = [
     featured: false,
   },
 ];
-
 export default function Home() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-black text-white selection:bg-[#B4FF39] selection:text-black">
@@ -83,9 +76,16 @@ export default function Home() {
         className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-black/80 backdrop-blur-2xl"
       >
         <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 sm:px-6">
-          <a href="#inicio" className="text-[13px] font-black tracking-[-0.04em] sm:text-[14px]">
-            COFIWORK - Diseños y desarrollo web
+          
+          {/* ✅ TU LOGO EN LUGAR DEL TEXTO */}
+          <a href="#inicio" className="flex items-center">
+            <img
+              src="/logo2.png"
+              alt="COFIWORK"
+              className="h-9 w-auto object-contain"
+            />
           </a>
+
           <div className="flex items-center gap-6">
             <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="rounded-full bg-[#B4FF39] px-5 py-2.5 text-[11px] font-black uppercase text-black transition-all duration-300 hover:bg-white hover:scale-105">Instagram</a>
             <a href={WA_URL} target="_blank" rel="noopener noreferrer" className="rounded-full bg-[#B4FF39] px-5 py-2.5 text-[11px] font-black uppercase text-black transition-all duration-300 hover:bg-white hover:scale-105">
@@ -105,7 +105,6 @@ export default function Home() {
           >
             Tu presencia<br />en internet,<br />construida a medida.
           </motion.h1>
-
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -114,7 +113,6 @@ export default function Home() {
           >
             Para presentar tu negocio, atraer clientes y crecer. Todo lo que necesitás, sin lo que no necesitás.
           </motion.p>
-
           <motion.div
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
@@ -138,7 +136,6 @@ export default function Home() {
               </motion.div>
             ))}
           </motion.div>
-
           <motion.a
             href={WA_URL}
             target="_blank"
@@ -170,7 +167,6 @@ export default function Home() {
                 style={{ filter: "drop-shadow(0 0 40px rgba(180, 255, 57, 0.18))" }}
               />
             </motion.div>
-
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -290,7 +286,7 @@ export default function Home() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`mt-6 block text-center rounded-full py-3 font-black uppercase transition-all duration-300 hover:scale-105 ${
-                    plan.featured ? "bg-black text-white hover:bg-black/80" : "bg-[#B4FF39] text-black hover:bg-white"
+                  plan.featured ? "bg-[#B4FF39] text-black hover:bg-white" : "bg-[#B4FF39] text-black hover:bg-white"
                   }`}
                 >
                   {plan.cta}
