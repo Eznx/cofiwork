@@ -306,13 +306,13 @@ export default function Home() {
             Tomá el control hoy mismo. Una web que trabaja por vos.
           </motion.p>
           <motion.a
-            href={WA_URL}
+            href={WA_URL} 
             target="_blank"
             rel="noopener noreferrer"
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: jetonEase, delay: 0.25 }}
+            transition={{ duration: 0.6, ease: jetonEase, delay: 0.24 }}
             className="mt-10 inline-flex h-16 items-center justify-center rounded-full bg-[#B4FF39] px-12 text-lg font-black uppercase text-black transition-all duration-300 hover:bg-white hover:scale-105"
           >
             Empezar mi web →
