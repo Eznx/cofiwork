@@ -1,7 +1,7 @@
-﻿'use client';
-
+'use client';
 import { useState, useRef, useEffect } from 'react';
 import Preloader from '@/components/ui/Preloader';
+import CursorFollower from '@/components/ui/CursorFollower';
 import SectionIndicator from '@/components/ui/SectionIndicator';
 import Marquee from '@/components/ui/Marquee';
 import Navbar from '@/components/layout/Navbar';
@@ -18,50 +18,37 @@ import { sectionNames } from '@/lib/constants';
 
 export default function Home() {
   const [cargando, setCargando] = useState(true);
-  const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const sectionRefs = Array.from({ length: sectionNames.length + 1 }).map(() => useRef(null));
   const [seccionActiva, setSeccionActiva] = useState(0);
-
-  if (sectionRefs.current.length === 0) {
-    sectionRefs.current = Array.from({ length: sectionNames.length + 1 }, () => null);
-  }
 
   useEffect(() => {
     if (cargando) return;
-
-    const observerOptions: IntersectionObserverInit = {
-      rootMargin: "-40% 0px -40% 0px",
-      threshold: 0,
-    };
-
-    const observers: IntersectionObserver[] = [];
-
-    sectionRefs.current.forEach((ref, index) => {
-      if (!ref) return;
+    const observerOptions = { rootMargin: "-40% 0px -40% 0px", threshold: 0 };
+    const observers = sectionRefs.map((ref, index) => {
+      if (!ref.current) return null;
       const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
+        entries.forEach(entry => {
           if (entry.isIntersecting) setSeccionActiva(index);
         });
       }, observerOptions);
-      observer.observe(ref);
-      observers.push(observer);
-    });
-
-    return () => observers.forEach((o) => o.disconnect());
+      observer.observe(ref.current);
+      return observer;
+    }).filter(Boolean) as IntersectionObserver[];
+    return () => observers.forEach(obs => obs.disconnect());
   }, [cargando]);
 
-  if (cargando) return <Preloader onComplete={() => setCargando(false)} />;
-
-  const setRef = (i: number) => (el: HTMLDivElement | null) => {
-    sectionRefs.current[i] = el;
-  };
+  if (cargando) {
+    return <Preloader onComplete={() => setCargando(false)} />;
+  }
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-black text-white selection:bg-[#B4FF39] selection:text-black">
-      <SectionIndicator active={seccionActiva} total={sectionRefs.current.length} />
+      <CursorFollower />
+      <SectionIndicator active={seccionActiva} total={sectionRefs.length} />
       <Navbar />
-
-      <div ref={setRef(0)} id="inicio"><Hero /></div>
-
+      
+      <div ref={sectionRefs[0]} id="inicio"><Hero /></div>
+      
       <section className="py-10 border-y border-[#B4FF39]/15">
         <Marquee speed={30}>
           <span className="text-4xl font-black uppercase text-white/10 mx-8">
@@ -69,13 +56,15 @@ export default function Home() {
           </span>
         </Marquee>
       </section>
-
-      <div ref={setRef(1)} id="quien-soy"><About /></div>
-      <div ref={setRef(2)} id="servicios"><Services /></div>
-      <div ref={setRef(3)} id="destacados"><Features /></div>
-      <div ref={setRef(4)} id="proyectos"><Projects /></div>
-      <div ref={setRef(5)} id="proceso"><Process /></div>
-
+      
+      <div ref={sectionRefs[1]} id="quien-soy"><About /></div>
+      <div ref={sectionRefs[2]} id="servicios"><Services /></div>
+      <div ref={sectionRefs[3]} id="destacados"><Features /></div>
+      
+      {/* ✅ PROYECTOS — UNA SOLA VEZ, solo el componente */}
+      <div ref={sectionRefs[4]} id="proyectos"><Projects /></div>
+      
+      <div ref={sectionRefs[5]} id="proceso"><Process /></div>
       <Pricing />
       <Closing />
       <Footer />

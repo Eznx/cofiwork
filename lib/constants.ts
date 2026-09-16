@@ -1,50 +1,157 @@
-﻿export const WA_NUMBER = "5491166173514";
-export const WA_TEXT = "Hola Nicolás, vi tu web. Quiero hablar sobre mi proyecto.";
-export const WA_URL = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(WA_TEXT)}`;
-export const INSTAGRAM_URL = "https://www.instagram.com/3zequielxlombardo/";
+﻿import { NavLink, Project, ProcessStep, Plan, StatItem } from './types';
 
-export const plans = [
+/* =========================================================
+   CONTACTO
+========================================================= */
+export const WA_NUMBER = '5491166173514';
+export const WA_TEXT = 'Hola Nicolás, vi COFIWORK y quiero hablar sobre mi proyecto.';
+export const WA_URL = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(WA_TEXT)}`;
+export const INSTAGRAM_URL = 'https://www.instagram.com/3zequielxlombardo/';
+
+/* =========================================================
+   NAVEGACIÓN
+========================================================= */
+export const navLinks: NavLink[] = [
+  { label: 'Quién Soy', href: '#quien-soy' },
+  { label: 'Servicios', href: '#servicios' },
+];
+
+/* =========================================================
+   HERO
+========================================================= */
+export const tituloLineas = [
+  'NO HAGO',
+  'WEBS IGUALES.',
+  'HAGO LA TUYA.',
+];
+
+export const heroItems = [
+  { titulo: 'A MEDIDA', desc: 'Diseñada desde cero para tu marca.' },
+  { titulo: 'RÁPIDA', desc: 'Tecnología optimizada para responder.' },
+  { titulo: 'ESTRATÉGICA', desc: 'Cada elemento tiene un propósito.' },
+];
+
+export const heroTelemetry = [
+  { value: '01', label: 'IDENTIDAD' },
+  { value: '02', label: 'ESTRATEGIA' },
+  { value: '03', label: 'DESARROLLO' },
+  { value: '04', label: 'EXPERIENCIA' },
+];
+
+export const heroStatus = {
+  system: 'COFIWORK',
+  mode: 'CUSTOM DIGITAL',
+  status: 'ONLINE',
+  location: 'BUENOS AIRES / AR',
+};
+
+/* =========================================================
+   PROYECTOS
+========================================================= */
+export const portfolio: Project[] = [
   {
-    name: "ESENCIAL",
-    price: "Desde $200.000",
-    maintenance: "Mantenimiento opcional",
-    featured: false,
-    description: "Tu presencia en internet lista para que te encuentren.",
-    features: [
-      "Página principal completa",
-      "Tus datos y formas de contacto",
-      "Se ve bien en celular y computadora",
-      "Publicación incluida"
-    ],
-    cta: "Quiero este plan"
+    name: 'Desarrollo Web Profesional',
+    tag: 'DESARROLLO',
+    description: 'Una presencia digital construida para transmitir valor, confianza y profesionalismo desde el primer segundo.',
+    image: '/foto1.jpeg',
   },
   {
-    name: "PROFESIONAL",
-    price: "Desde $380.000",
-    maintenance: "Mantenimiento opcional",
+    name: 'Soluciones a Medida',
+    tag: 'ESTRATEGIA',
+    description: 'Estructura, contenido y experiencia diseñados alrededor de lo que tu negocio realmente necesita.',
+    image: '/foto2.jpeg',
+  },
+  {
+    name: 'Presencia Completa',
+    tag: 'EXPERIENCIA DIGITAL',
+    description: 'Un sistema digital coherente para convertir una visita en una oportunidad real de contacto.',
+    image: '/foto3.jpeg',
+  },
+];
+
+/* =========================================================
+   PROCESO
+========================================================= */
+export const process: ProcessStep[] = [
+  { n: '01', title: 'Hablamos', description: 'Me contás qué hacés, qué necesitás y qué querés conseguir.' },
+  { n: '02', title: 'Diseñamos', description: 'Definimos estructura, identidad y experiencia antes de construir.' },
+  { n: '03', title: 'Construimos', description: 'Desarrollo la web, optimizo cada detalle y la preparo para salir.' },
+  { n: '04', title: 'La activamos', description: 'Tu sitio queda publicado, funcionando y listo para recibir visitas.' },
+];
+
+/* =========================================================
+   PLANES
+========================================================= */
+export const plans: Plan[] = [
+  {
+    name: 'INICIO',
+    price: 'Desde $200.000',
+    maintenance: 'Mantenimiento opcional',
+    description: 'Una presencia web profesional para empezar con una base sólida.',
+    features: [
+      'Hasta 5 páginas',
+      'Diseño completamente personalizado',
+      'Adaptación a celular y tablet',
+      'WhatsApp integrado',
+      'Publicación incluida',
+      'Optimización de rendimiento',
+    ],
+    cta: 'Consultar',
+    featured: false,
+  },
+  {
+    name: 'PROFESIONAL',
+    price: 'Desde $380.000',
+    maintenance: 'Mantenimiento opcional',
+    description: 'Una experiencia digital completa para presentar tu negocio con otra presencia.',
+    features: [
+      'Diseño exclusivo',
+      'Arquitectura de contenido',
+      'Sección de servicios',
+      'Contacto y ubicación',
+      'Formularios',
+      'WhatsApp integrado',
+      'Optimización de rendimiento',
+      'SEO técnico inicial',
+    ],
+    cta: 'Quiero este plan',
     featured: true,
-    description: "La opción elegida por quienes quieren destacar.",
-    features: [
-      "Hasta 5 páginas estructuradas",
-      "Diseño hecho solo para vos",
-      "Formulario de contacto",
-      "Configuración para que te encuentren fácil",
-      "Publicación y DNS configurados"
-    ],
-    cta: "Quiero este plan"
   },
   {
-    name: "COMPLETO",
-    price: "A consultar",
-    maintenance: "A medida",
-    featured: false,
-    description: "Armamos todo lo que necesitamos juntos.",
+    name: 'A MEDIDA',
+    price: 'A definir',
+    maintenance: 'Seguimiento continuo',
+    description: 'Para proyectos que necesitan una solución diseñada alrededor de una idea específica.',
     features: [
-      "Todo lo de los planes anteriores",
-      "Secciones que vayamos sumando",
-      "Estadísticas de visitas",
-      "Te ayudo a mantenerla al día"
+      'Todo lo anterior',
+      'Secciones personalizadas',
+      'Animaciones avanzadas',
+      'Experiencias interactivas',
+      'Estadísticas de visita',
+      'Integraciones',
+      'Mantenimiento y evolución',
     ],
-    cta: "Hablemos"
-  }
-] as const;
+    cta: 'Hablemos',
+    featured: false,
+  },
+];
+
+/* =========================================================
+   ESTADÍSTICAS
+========================================================= */
+export const stats: StatItem[] = [
+  { value: '100%', label: 'A MEDIDA' },
+  { value: '01', label: 'SISTEMA POR PROYECTO' },
+  { value: '∞', label: 'POSIBILIDADES' },
+];
+
+/* =========================================================
+   NAVEGACIÓN DE SECCIONES — ✅ AQUÍ ESTÁ
+========================================================= */
+export const sectionNames = [
+  'Inicio',
+  'Quién Soy',
+  'Servicios',
+  'Proyectos',
+  'Proceso',
+];
