@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
@@ -183,7 +183,7 @@ function HolographicCore() {
       </mesh>
 
       <mesh scale={0.38}>
-        <sphereGeometry args={[1, 32, 32]} />
+        <sphereGeometry args={[1, 32, 32] as [number, number, number]} />
 
         <meshBasicMaterial
           color="#B4FF39"
@@ -241,17 +241,17 @@ function HolographicCore() {
 
 function EnergyLines() {
   const lineOne = useMemo(
-    () => [
+    (): THREE.Vector3Tuple[] => [
       [-5.5, 0, 0],
       [-2.2, 0.1, 0],
-      [0, 0, 0],
+      [0, 0, 0] as [number, number, number],
     ],
     []
   );
 
   const lineTwo = useMemo(
-    () => [
-      [0, 0, 0],
+    (): THREE.Vector3Tuple[] => [
+      [0, 0, 0] as [number, number, number],
       [2.2, -0.1, 0],
       [5.5, 0, 0],
     ],
@@ -490,7 +490,7 @@ function ProjectCard({
             "
             animate={{
               y: ['0%', '280px'],
-              opacity: [0, 1, 0],
+              opacity: [0, 1, 0] as [number, number, number],
             }}
             transition={{
               duration: 3.8,
@@ -694,7 +694,7 @@ export default function Projects() {
       >
         <Canvas
           camera={{
-            position: [0, 0, 11],
+            position: [0, 0, 11] as [number, number, number],
             fov: 48,
           }}
           dpr={[1, 1.5]}

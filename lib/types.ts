@@ -31,6 +31,6 @@ export interface Plan {
 }
 
 export interface StatItem {
-  value: number;
+  value: string;
   label: string;
 }

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import {
   useEffect,
@@ -1558,7 +1558,7 @@ export default function Hero() {
             opacity: 1,
             scale: 1,
             duration: 1.8,
-            ease: jetonEase,
+            ease: "jetonEase",
           }
         );
 
@@ -1571,7 +1571,7 @@ export default function Hero() {
               filter:
                 'blur(0px)',
               duration: 1.4,
-              ease: jetonEase,
+              ease: "jetonEase",
             },
             '-=1.15'
           );
@@ -1584,7 +1584,7 @@ export default function Hero() {
               opacity: 1,
               y: 0,
               duration: 0.9,
-              ease: jetonEase,
+              ease: "power3.out",
             },
             '-=0.75'
           );
@@ -1597,7 +1597,7 @@ export default function Hero() {
               opacity: 1,
               y: 0,
               duration: 0.75,
-              ease: jetonEase,
+              ease: "power3.out",
             },
             '-=0.55'
           );
