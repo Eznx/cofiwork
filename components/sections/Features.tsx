@@ -126,10 +126,20 @@ export default function Features() {
               className="relative group"
             >
               <motion.div
-                animate={glowPulse}
-                transition={{ delay: i * 0.5 }}
-                className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-              />
+  animate={{
+    boxShadow: [
+      '0 0 10px rgba(180, 255, 57, 0.15), inset 0 0 10px rgba(180, 255, 57, 0.05)',
+      '0 0 30px rgba(180, 255, 57, 0.35), inset 0 0 20px rgba(180, 255, 57, 0.12)',
+      '0 0 10px rgba(180, 255, 57, 0.15), inset 0 0 10px rgba(180, 255, 57, 0.05)',
+    ],
+  }}
+  transition={{ 
+    duration: 3, 
+    repeat: Infinity, 
+    ease: [0.4, 0, 0.6, 1] as [number, number, number, number]
+  }}
+  className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+/>
               
               <div className="relative rounded-3xl border border-white/10 bg-white/[0.02] p-8 overflow-hidden">
                 <div className="absolute top-0 left-0 w-6 h-6 border-t border-l border-[#B4FF39]/0 group-hover:border-[#B4FF39]/40 transition-all duration-500 rounded-tl-3xl" />
