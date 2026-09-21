@@ -1,2395 +1,1441 @@
-﻿'use client';
+﻿"use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import { useEffect, useMemo, useRef } from "react";
 
 import {
   motion,
   useMotionValueEvent,
   useReducedMotion,
   useScroll,
-} from 'framer-motion';
+} from "framer-motion";
 
 import {
   Canvas,
   useFrame,
-} from '@react-three/fiber';
+  useThree,
+} from "@react-three/fiber";
 
-import {
-  Line,
-  Sparkles,
-} from '@react-three/drei';
+import { Sparkles } from "@react-three/drei";
+import * as THREE from "three";
+import gsap from "gsap";
 
-import * as THREE from 'three';
-import gsap from 'gsap';
+import { WA_URL } from "@/lib/constants";
 
-import { WA_URL } from '@/lib/constants';
-import { jetonEase } from '@/lib/animations';
+/* -------------------------------------------------------------------------- */
+/*                                    DATA                                    */
+/* -------------------------------------------------------------------------- */
 
-/* =========================================================
-   TYPES
-========================================================= */
-
-type SceneInteraction = {
-  pointer: React.MutableRefObject<THREE.Vector2>;
-  scroll: React.MutableRefObject<number>;
-  velocity: React.MutableRefObject<number>;
+const COSMIC = {
+  lime: new THREE.Color("#B4FF39"),
+  limeSoft: new THREE.Color("#8FCF36"),
+  deepGreen: new THREE.Color("#0F2E1A"),
+  cosmicViolet: new THREE.Color("#2A1B47"),
+  deepBlue: new THREE.Color("#0A1628"),
+  midnight: new THREE.Color("#050A14"),
+  goldSoft: new THREE.Color("#BFA96E"),
+  goldBright: new THREE.Color("#E7CF82"),
+  whiteSoft: new THREE.Color("#E8EED4"),
 };
 
-type NebulaProps = {
-  count?: number;
-  radius?: number;
-  opacity?: number;
-  interaction: SceneInteraction;
-  reducedMotion: boolean;
-};
+const TAU = Math.PI * 2;
 
-type GalaxySceneProps = {
-  interaction: SceneInteraction;
-  reducedMotion: boolean;
-};
+/* -------------------------------------------------------------------------- */
+/*                                  HELPERS                                   */
+/* -------------------------------------------------------------------------- */
 
-/* =========================================================
-   SEEDED RANDOM
-   Evita que las partículas cambien en cada render.
-========================================================= */
-
-function seededRandom(seed: number) {
+function rnd(seed: number) {
   const x = Math.sin(seed * 12.9898) * 43758.5453;
   return x - Math.floor(x);
 }
 
-/* =========================================================
-   NEBULA SHADER
-========================================================= */
-
-const nebulaVertexShader = `
-  uniform float uTime;
-  uniform float uScroll;
-  uniform float uVelocity;
-  uniform vec2 uPointer;
-
-  attribute float aRandom;
-  attribute float aSize;
-
-  varying float vRandom;
-  varying float vDepth;
-
-  void main() {
-    vec3 p = position;
-
-    float spin =
-      uTime * (0.035 + aRandom * 0.045)
-      + uScroll * 0.42;
-
-    float c = cos(spin);
-    float s = sin(spin);
-
-    p.xz = mat2(c, -s, s, c) * p.xz;
-
-    float wave =
-      sin(
-        uTime * 0.75
-        + aRandom * 24.0
-        + length(p) * 2.4
-      );
-
-    p.y += wave * 0.055 * (0.3 + aRandom);
-
-    p.x += uPointer.x * (0.18 + aRandom * 0.45);
-    p.y += uPointer.y * (0.12 + aRandom * 0.3);
-
-    float zoom =
-      1.0
-      + uScroll * 0.65
-      + uVelocity * 0.22;
-
-    p *= zoom;
-
-    vec4 mvPosition =
-      modelViewMatrix *
-      vec4(p, 1.0);
-
-    float depth =
-      clamp(
-        1.8 / max(-mvPosition.z, 0.1),
-        0.15,
-        2.8
-      );
-
-    gl_PointSize =
-      aSize
-      * depth
-      * (1.0 + uVelocity * 2.0);
-
-    gl_Position =
-      projectionMatrix *
-      mvPosition;
-
-    vRandom = aRandom;
-    vDepth = depth;
-  }
-`;
-
-const nebulaFragmentShader = `
-  varying float vRandom;
-  varying float vDepth;
-
-  void main() {
-    vec2 uv =
-      gl_PointCoord -
-      vec2(0.5);
-
-    float distanceFromCenter =
-      length(uv);
-
-    float soft =
-      smoothstep(
-        0.5,
-        0.0,
-        distanceFromCenter
-      );
-
-    float core =
-      smoothstep(
-        0.24,
-        0.0,
-        distanceFromCenter
-      );
-
-    vec3 lime =
-      vec3(
-        0.705,
-        1.0,
-        0.223
-      );
-
-    vec3 white =
-      vec3(
-        1.0,
-        1.0,
-        1.0
-      );
-
-    vec3 greenWhite =
-      mix(
-        white,
-        lime,
-        vRandom * 0.82
-      );
-
-    float alpha =
-      soft
-      * (
-        0.13
-        + core * 0.72
-      )
-      * (
-        0.35
-        + vDepth * 0.55
-      );
-
-    gl_FragColor =
-      vec4(
-        greenWhite,
-        alpha
-      );
-  }
-`;
-
-/* =========================================================
-   MAIN GALAXY PARTICLES
-========================================================= */
-
-function Nebula({
-  count = 5200,
-  radius = 5.2,
-  opacity = 1,
-  interaction,
-  reducedMotion,
-}: NebulaProps) {
-  const materialRef =
-    useRef<THREE.ShaderMaterial>(null);
-
-  const geometry =
-    useMemo(() => {
-      const geo =
-        new THREE.BufferGeometry();
-
-      const positions =
-        new Float32Array(count * 3);
-
-      const randoms =
-        new Float32Array(count);
-
-      const sizes =
-        new Float32Array(count);
-
-      for (let i = 0; i < count; i++) {
-        const r1 =
-          seededRandom(i * 3 + 1);
-
-        const r2 =
-          seededRandom(i * 3 + 2);
-
-        const r3 =
-          seededRandom(i * 3 + 3);
-
-        const r4 =
-          seededRandom(i * 3 + 4);
-
-        /*
-         * Spiral galaxy distribution.
-         */
-
-        const radial =
-          0.18 +
-          Math.pow(r1, 0.68) *
-            radius;
-
-        const arm =
-          Math.floor(r2 * 4);
-
-        const armOffset =
-          arm *
-          (Math.PI * 2 / 4);
-
-        const spiral =
-          radial * 1.65;
-
-        const angle =
-          spiral +
-          armOffset +
-          (r3 - 0.5) * 0.78;
-
-        const thickness =
-          0.16 +
-          radial * 0.12;
-
-        const x =
-          Math.cos(angle) *
-            radial +
-          (r4 - 0.5) *
-            thickness;
-
-        const z =
-          Math.sin(angle) *
-            radial *
-            0.76 +
-          (r3 - 0.5) *
-            thickness;
-
-        /*
-         * Flattened galactic disk.
-         */
-
-        const y =
-          (r4 - 0.5) *
-            (
-              1.35 -
-              radial * 0.16
-            ) +
-          Math.sin(angle * 2.0) *
-            0.12;
-
-        positions[i * 3] =
-          x;
-
-        positions[i * 3 + 1] =
-          y;
-
-        positions[i * 3 + 2] =
-          z;
-
-        randoms[i] =
-          seededRandom(
-            i * 17 + 33
-          );
-
-        /*
-         * Larger particles near the core.
-         */
-
-        const coreFactor =
-          1 -
-          Math.min(
-            radial / radius,
-            1
-          );
-
-        sizes[i] =
-          (
-            0.45 +
-            coreFactor * 1.55 +
-            seededRandom(i * 7) * 0.7
-          ) *
-          (
-            reducedMotion
-              ? 0.75
-              : 1
-          );
-      }
-
-      geo.setAttribute(
-        'position',
-        new THREE.BufferAttribute(
-          positions,
-          3
-        )
-      );
-
-      geo.setAttribute(
-        'aRandom',
-        new THREE.BufferAttribute(
-          randoms,
-          1
-        )
-      );
-
-      geo.setAttribute(
-        'aSize',
-        new THREE.BufferAttribute(
-          sizes,
-          1
-        )
-      );
-
-      return geo;
-    }, [
-      count,
-      radius,
-      reducedMotion,
-    ]);
-
-  useFrame(
-    (state) => {
-      if (!materialRef.current) {
-        return;
-      }
-
-      const uniforms =
-        materialRef.current.uniforms;
-
-      uniforms.uTime.value =
-        state.clock.elapsedTime;
-
-      uniforms.uScroll.value =
-        reducedMotion
-          ? 0
-          : interaction.scroll.current;
-
-      uniforms.uVelocity.value =
-        reducedMotion
-          ? 0
-          : interaction.velocity.current;
-
-      uniforms.uPointer.value.lerp(
-        interaction.pointer.current,
-        0.035
-      );
-    }
-  );
-
-  return (
-    <points
-      geometry={geometry}
-      frustumCulled={false}
-    >
-      <shaderMaterial
-        ref={materialRef}
-        transparent
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-        vertexShader={
-          nebulaVertexShader
-        }
-        fragmentShader={
-          nebulaFragmentShader
-        }
-        uniforms={{
-          uTime: {
-            value: 0,
-          },
-          uScroll: {
-            value: 0,
-          },
-          uVelocity: {
-            value: 0,
-          },
-          uPointer: {
-            value: new THREE.Vector2(),
-          },
-          uOpacity: {
-            value: opacity,
-          },
-        }}
-      />
-    </points>
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                SCENE STATE                                 */
+/* -------------------------------------------------------------------------- */
+
+type SceneState = {
+  pointer: THREE.Vector2;
+  scroll: number;
+  velocity: number;
+  time: number;
+};
+
+function useSceneState() {
+  return useMemo<SceneState>(
+    () => ({
+      pointer: new THREE.Vector2(0, 0),
+      scroll: 0,
+      velocity: 0,
+      time: 0,
+    }),
+    [],
   );
 }
 
-/* =========================================================
-   SECONDARY DUST
-========================================================= */
+/* -------------------------------------------------------------------------- */
+/*                                  NEBULA                                    */
+/* -------------------------------------------------------------------------- */
 
-function DustCloud({
-  count = 2400,
-  interaction,
-  reducedMotion,
+function LivingNebula({
+  scene,
 }: {
-  count?: number;
-  interaction: SceneInteraction;
-  reducedMotion: boolean;
+  scene: SceneState;
 }) {
-  const materialRef =
-    useRef<THREE.ShaderMaterial>(null);
+  const count = 2600;
 
-  const geometry =
-    useMemo(() => {
-      const geo =
-        new THREE.BufferGeometry();
+  const geometry = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const seeds = new Float32Array(count);
+    const sizes = new Float32Array(count);
+    const depths = new Float32Array(count);
 
-      const positions =
-        new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
 
-      const randoms =
-        new Float32Array(count);
+      const seed = rnd(i + 17);
+      const seed2 = rnd(i * 1.731 + 9);
+      const seed3 = rnd(i * 3.113 + 41);
 
-      const sizes =
-        new Float32Array(count);
+      const radius = 1.8 + seed * 7.5;
+      const angle = seed2 * TAU;
 
-      for (let i = 0; i < count; i++) {
-        const r1 =
-          seededRandom(i + 1000);
+      const spiral = angle + radius * 0.75;
 
-        const r2 =
-          seededRandom(i + 2000);
+      positions[i3] =
+        Math.cos(spiral) *
+        radius *
+        (0.72 + seed3 * 0.5);
 
-        const r3 =
-          seededRandom(i + 3000);
+      positions[i3 + 1] =
+        (seed3 - 0.5) *
+        (2.8 + radius * 0.42);
 
-        const radius =
-          4.5 +
-          r1 * 5.5;
+      positions[i3 + 2] =
+        Math.sin(spiral) *
+        radius *
+        (0.72 + seed2 * 0.5);
 
-        const angle =
-          r2 *
-          Math.PI *
-          2;
-
-        positions[i * 3] =
-          Math.cos(angle) *
-          radius;
-
-        positions[i * 3 + 1] =
-          (r3 - 0.5) *
-          5.5;
-
-        positions[i * 3 + 2] =
-          Math.sin(angle) *
-          radius;
-
-        randoms[i] =
-          r1;
-
-        sizes[i] =
-          0.35 +
-          r2 * 1.1;
-      }
-
-      geo.setAttribute(
-        'position',
-        new THREE.BufferAttribute(
-          positions,
-          3
-        )
-      );
-
-      geo.setAttribute(
-        'aRandom',
-        new THREE.BufferAttribute(
-          randoms,
-          1
-        )
-      );
-
-      geo.setAttribute(
-        'aSize',
-        new THREE.BufferAttribute(
-          sizes,
-          1
-        )
-      );
-
-      return geo;
-    }, [count]);
-
-  useFrame(
-    (state) => {
-      if (!materialRef.current) {
-        return;
-      }
-
-      materialRef.current.uniforms.uTime.value =
-        state.clock.elapsedTime;
-
-      materialRef.current.uniforms.uScroll.value =
-        reducedMotion
-          ? 0
-          : interaction.scroll.current;
-
-      materialRef.current.uniforms.uVelocity.value =
-        reducedMotion
-          ? 0
-          : interaction.velocity.current;
+      seeds[i] = seed;
+      sizes[i] = 0.5 + seed2 * 2.2;
+      depths[i] = clamp((radius - 1.8) / 7.5, 0, 1);
     }
-  );
 
-  return (
-    <points
-      geometry={geometry}
-      frustumCulled={false}
-    >
-      <shaderMaterial
-        ref={materialRef}
-        transparent
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-        vertexShader={`
-          uniform float uTime;
-          uniform float uScroll;
-          uniform float uVelocity;
+    const geo = new THREE.BufferGeometry();
 
-          attribute float aRandom;
-          attribute float aSize;
+    geo.setAttribute(
+      "position",
+      new THREE.BufferAttribute(positions, 3),
+    );
 
-          varying float vRandom;
+    geo.setAttribute(
+      "aSeed",
+      new THREE.BufferAttribute(seeds, 1),
+    );
 
-          void main() {
-            vec3 p = position;
+    geo.setAttribute(
+      "aSize",
+      new THREE.BufferAttribute(sizes, 1),
+    );
 
-            float rotation =
-              uTime * (
-                0.012 +
-                aRandom * 0.018
-              );
+    geo.setAttribute(
+      "aDepth",
+      new THREE.BufferAttribute(depths, 1),
+    );
 
-            float c = cos(rotation);
-            float s = sin(rotation);
+    return geo;
+  }, []);
 
-            p.xz =
-              mat2(c, -s, s, c) *
-              p.xz;
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
 
-            p.y +=
-              sin(
-                uTime * 0.3 +
-                aRandom * 20.0
-              ) * 0.08;
-
-            p *=
-              1.0 +
-              uScroll * 0.38 +
-              uVelocity * 0.12;
-
-            vec4 mv =
-              modelViewMatrix *
-              vec4(p, 1.0);
-
-            float depth =
-              clamp(
-                2.0 / max(-mv.z, 0.1),
-                0.1,
-                2.5
-              );
-
-            gl_PointSize =
-              aSize *
-              depth;
-
-            gl_Position =
-              projectionMatrix *
-              mv;
-
-            vRandom =
-              aRandom;
-          }
-        `}
-        fragmentShader={`
-          varying float vRandom;
-
-          void main() {
-            float d =
-              distance(
-                gl_PointCoord,
-                vec2(0.5)
-              );
-
-            float alpha =
-              smoothstep(
-                0.5,
-                0.0,
-                d
-              );
-
-            vec3 lime =
-              vec3(
-                0.705,
-                1.0,
-                0.223
-              );
-
-            vec3 white =
-              vec3(1.0);
-
-            vec3 color =
-              mix(
-                lime,
-                white,
-                vRandom
-              );
-
-            gl_FragColor =
-              vec4(
-                color,
-                alpha * 0.16
-              );
-          }
-        `}
-        uniforms={{
-          uTime: {
-            value: 0,
-          },
-          uScroll: {
-            value: 0,
-          },
-          uVelocity: {
-            value: 0,
-          },
-        }}
-      />
-    </points>
-  );
-}
-
-/* =========================================================
-   GALAXY FILAMENTS
-========================================================= */
-
-function GalaxyFilaments({
-  interaction,
-  reducedMotion,
-}: {
-  interaction: SceneInteraction;
-  reducedMotion: boolean;
-}) {
-  const filaments =
-    useMemo(() => {
-      return Array.from(
-        {
-          length: 5,
+      uniforms: {
+        uTime: { value: 0 },
+        uScroll: { value: 0 },
+        uVelocity: { value: 0 },
+        uPointer: {
+          value: new THREE.Vector2(0, 0),
         },
-        (_, arm) => {
-          const points: THREE.Vector3[] =
-            [];
 
-          for (
-            let i = 0;
-            i <= 120;
-            i++
-          ) {
-            const t =
-              i / 120;
+        uBase: {
+          value: COSMIC.deepGreen,
+        },
 
-            const radius =
-              0.4 +
-              t * 4.8;
+        uAccent: {
+          value: COSMIC.lime,
+        },
 
-            const angle =
-              radius * 1.7 +
-              arm *
-                (
-                  Math.PI *
-                  2 /
-                  5
-                );
+        uGold: {
+          value: COSMIC.goldBright,
+        },
+      },
 
-            const wave =
-              Math.sin(
-                t * Math.PI * 8 +
-                arm
-              ) * 0.12;
+      vertexShader: `
+        attribute float aSeed;
+        attribute float aSize;
+        attribute float aDepth;
 
-            points.push(
-              new THREE.Vector3(
-                Math.cos(angle) *
-                    radius +
-                  wave,
-                Math.sin(
-                  t *
-                    Math.PI *
-                    5
-                ) *
-                  0.18,
-                Math.sin(angle) *
-                    radius *
-                    0.76
-              )
+        uniform float uTime;
+        uniform float uScroll;
+        uniform float uVelocity;
+        uniform vec2 uPointer;
+
+        varying float vDepth;
+        varying float vSeed;
+
+        void main() {
+          vec3 p = position;
+
+          float t = uTime * 0.14;
+
+          /* Organic rotation */
+          float rotation = t * (0.25 + aSeed * 0.2);
+
+          float c = cos(rotation);
+          float s = sin(rotation);
+
+          p.xz = mat2(c, -s, s, c) * p.xz;
+
+          /* Breathing */
+          float wave =
+            sin(
+              p.y * 0.8 +
+              aSeed * 8.0 +
+              uTime * 0.65
             );
-          }
 
-          return points;
+          p += normalize(p + vec3(0.001)) *
+            wave *
+            (0.025 + aDepth * 0.06);
+
+          /* Spiral deformation */
+          float spiral =
+            sin(
+              atan(p.z, p.x) * 3.0 +
+              length(p.xz) * 1.7 -
+              uTime * 0.35
+            );
+
+          p.y += spiral * 0.08 * aDepth;
+
+          /* Cursor gravity */
+          vec2 cursor = uPointer;
+
+          float cursorDistance =
+            distance(
+              vec2(p.x, p.z) * 0.12,
+              cursor
+            );
+
+          float cursorInfluence =
+            exp(-cursorDistance * 4.0);
+
+          p.x += cursor.x * cursorInfluence * 0.7;
+          p.z += cursor.y * cursorInfluence * 0.7;
+
+          /* Scroll field */
+          p.y += uScroll * (0.55 + aDepth * 0.7);
+
+          /* Velocity stretch */
+          p.z += uVelocity * aDepth * 0.18;
+
+          vec4 mvPosition =
+            modelViewMatrix *
+            vec4(p, 1.0);
+
+          float perspective =
+            250.0 / max(1.0, -mvPosition.z);
+
+          gl_PointSize =
+            aSize *
+            perspective *
+            (0.75 + aDepth * 0.75);
+
+          gl_Position =
+            projectionMatrix *
+            mvPosition;
+
+          vDepth = aDepth;
+          vSeed = aSeed;
         }
-      );
-    }, []);
+      `,
 
-  const groupRef =
-    useRef<THREE.Group>(null);
+      fragmentShader: `
+        uniform vec3 uBase;
+        uniform vec3 uAccent;
+        uniform vec3 uGold;
 
-  useFrame(
-    (state) => {
-      if (!groupRef.current) {
-        return;
-      }
+        varying float vDepth;
+        varying float vSeed;
 
-      if (!reducedMotion) {
-        groupRef.current.rotation.y =
-          state.clock.elapsedTime *
-          0.025;
+        void main() {
+          vec2 uv = gl_PointCoord - 0.5;
 
-        groupRef.current.rotation.x =
-          THREE.MathUtils.lerp(
-            groupRef.current.rotation.x,
-            interaction.pointer.current.y *
-              0.08,
-            0.02
-          );
+          float d = length(uv);
 
-        groupRef.current.rotation.z =
-          THREE.MathUtils.lerp(
-            groupRef.current.rotation.z,
-            interaction.pointer.current.x *
-              0.06,
-            0.02
-          );
+          if (d > 0.5) discard;
 
-        const scale =
-          1 +
-          interaction.scroll.current *
-            0.6;
+          float core =
+            smoothstep(
+              0.18,
+              0.0,
+              d
+            );
 
-        groupRef.current.scale.lerp(
-          new THREE.Vector3(
-            scale,
-            scale,
-            scale
-          ),
-          0.025
-        );
-      }
-    }
-  );
+          float halo =
+            smoothstep(
+              0.5,
+              0.0,
+              d
+            );
+
+          vec3 color =
+            mix(
+              uBase,
+              uAccent,
+              vDepth
+            );
+
+          color =
+            mix(
+              color,
+              uGold,
+              pow(vSeed, 5.0) * 0.65
+            );
+
+          float alpha =
+            halo *
+            (0.16 + core * 0.8) *
+            (0.25 + vDepth * 0.8);
+
+          gl_FragColor =
+            vec4(
+              color,
+              alpha
+            );
+        }
+      `,
+    });
+  }, []);
+
+  useFrame((_, delta) => {
+    scene.time += delta;
+
+    material.uniforms.uTime.value =
+      scene.time;
+
+    material.uniforms.uScroll.value =
+      scene.scroll;
+
+    material.uniforms.uVelocity.value =
+      scene.velocity;
+
+    material.uniforms.uPointer.value.lerp(
+      scene.pointer,
+      0.08,
+    );
+  });
 
   return (
-    <group ref={groupRef}>
-      {filaments.map(
-        (points, index) => (
-          <Line
-            key={index}
-            points={points}
-            color="#B4FF39"
-            transparent
-            opacity={
-              reducedMotion
-                ? 0.06
-                : 0.08
-            }
-            lineWidth={
-              index === 2
-                ? 1.25
-                : 0.7
-            }
-          />
-        )
-      )}
-    </group>
+    <points
+      geometry={geometry}
+      material={material}
+      frustumCulled={false}
+    />
   );
 }
 
-/* =========================================================
-   HOLOGRAPHIC RINGS
-========================================================= */
+/* -------------------------------------------------------------------------- */
+/*                                   RINGS                                    */
+/* -------------------------------------------------------------------------- */
 
-function HolographicRings({
-  interaction,
-  reducedMotion,
+function LivingRings({
+  scene,
 }: {
-  interaction: SceneInteraction;
-  reducedMotion: boolean;
+  scene: SceneState;
 }) {
-  const groupRef =
-    useRef<THREE.Group>(null);
+  const rings = useMemo(
+    () => [
+      {
+        radius: 2.0,
+        tube: 0.008,
+        opacity: 0.52,
+        speed: 0.18,
+        rotation: [0.15, 0.4, 0.2] as [
+          number,
+          number,
+          number,
+        ],
+      },
+      {
+        radius: 2.65,
+        tube: 0.014,
+        opacity: 0.3,
+        speed: -0.12,
+        rotation: [1.1, 0.2, 0.8] as [
+          number,
+          number,
+          number,
+        ],
+      },
+      {
+        radius: 3.25,
+        tube: 0.008,
+        opacity: 0.24,
+        speed: 0.08,
+        rotation: [0.4, 1.2, 0.2] as [
+          number,
+          number,
+          number,
+        ],
+      },
+      {
+        radius: 4.1,
+        tube: 0.005,
+        opacity: 0.15,
+        speed: -0.06,
+        rotation: [1.3, 0.5, 1.1] as [
+          number,
+          number,
+          number,
+        ],
+      },
+    ],
+    [],
+  );
 
-  useFrame(
-    (state) => {
-      if (!groupRef.current) {
-        return;
-      }
+  const refs = useRef<
+    Array<THREE.Mesh | null>
+  >([]);
 
-      const scroll =
-        reducedMotion
-          ? 0
-          : interaction.scroll.current;
+  useFrame((_, delta) => {
+    refs.current.forEach((mesh, index) => {
+      if (!mesh) return;
 
-      const velocity =
-        reducedMotion
-          ? 0
-          : interaction.velocity.current;
+      const ring = rings[index];
 
-      groupRef.current.rotation.y =
-        state.clock.elapsedTime *
-          0.06 +
-        scroll * 0.8;
+      mesh.rotation.x +=
+        delta * ring.speed;
 
-      groupRef.current.rotation.x =
-        THREE.MathUtils.lerp(
-          groupRef.current.rotation.x,
-          interaction.pointer.current.y *
-            0.18,
-          0.025
-        );
+      mesh.rotation.z +=
+        delta * ring.speed * 0.55;
 
-      groupRef.current.rotation.z =
-        THREE.MathUtils.lerp(
-          groupRef.current.rotation.z,
-          interaction.pointer.current.x *
-            0.16,
-          0.025
-        );
+      mesh.rotation.y +=
+        delta * ring.speed * 0.25;
 
-      const scale =
+      const pulse =
         1 +
-        scroll * 0.85 +
-        velocity * 0.3;
+        Math.sin(
+          scene.time * 0.65 +
+          index
+        ) *
+        0.012;
 
-      groupRef.current.scale.lerp(
-        new THREE.Vector3(
-          scale,
-          scale,
-          scale
-        ),
-        0.035
-      );
-    }
-  );
+      mesh.scale.setScalar(pulse);
+    });
+  });
 
   return (
-    <group ref={groupRef}>
-      <mesh rotation={[0.7, 0.2, 0]}>
-        <torusGeometry
-          args={[
-            2.1,
-            0.009,
-            8,
-            180,
-          ]}
-        />
+    <group>
+      {rings.map((ring, index) => (
+        <mesh
+          key={index}
+          ref={(node) => {
+            refs.current[index] = node;
+          }}
+          rotation={ring.rotation}
+        >
+          <torusGeometry
+            args={[
+              ring.radius,
+              ring.tube,
+              16,
+              220,
+            ]}
+          />
 
-        <meshBasicMaterial
-          color="#B4FF39"
-          transparent
-          opacity={0.23}
-          blending={
-            THREE.AdditiveBlending
-          }
-          depthWrite={false}
-        />
-      </mesh>
-
-      <mesh rotation={[1.1, 0.4, 0.8]}>
-        <torusGeometry
-          args={[
-            3.15,
-            0.006,
-            8,
-            180,
-          ]}
-        />
-
-        <meshBasicMaterial
-          color="#B4FF39"
-          transparent
-          opacity={0.11}
-          blending={
-            THREE.AdditiveBlending
-          }
-          depthWrite={false}
-        />
-      </mesh>
-
-      <mesh rotation={[0.25, 1.2, 0.3]}>
-        <torusGeometry
-          args={[
-            4.3,
-            0.004,
-            8,
-            180,
-          ]}
-        />
-
-        <meshBasicMaterial
-          color="#ffffff"
-          transparent
-          opacity={0.055}
-          blending={
-            THREE.AdditiveBlending
-          }
-          depthWrite={false}
-        />
-      </mesh>
+          <meshBasicMaterial
+            color={
+              index % 2 === 0
+                ? COSMIC.lime
+                : COSMIC.goldSoft
+            }
+            transparent
+            opacity={ring.opacity}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }
 
-/* =========================================================
-   CORE AURA
-   No sphere: pure holographic energy field.
-========================================================= */
+/* -------------------------------------------------------------------------- */
+/*                                    CORE                                    */
+/* -------------------------------------------------------------------------- */
 
-function NebulaAura({
-  interaction,
-  reducedMotion,
+function LivingCore({
+  scene,
 }: {
-  interaction: SceneInteraction;
-  reducedMotion: boolean;
+  scene: SceneState;
 }) {
-  const materialRef =
-    useRef<THREE.ShaderMaterial>(null);
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
 
-  const meshRef =
-    useRef<THREE.Mesh>(null);
+      uniforms: {
+        uTime: { value: 0 },
+        uPointer: {
+          value: new THREE.Vector2(0, 0),
+        },
+      },
 
-  useFrame(
-    (state) => {
-      if (
-        !materialRef.current ||
-        !meshRef.current
-      ) {
-        return;
-      }
+      vertexShader: `
+        varying vec2 vUv;
 
-      materialRef.current.uniforms.uTime.value =
-        state.clock.elapsedTime;
+        void main() {
+          vUv = uv;
 
-      materialRef.current.uniforms.uScroll.value =
-        reducedMotion
-          ? 0
-          : interaction.scroll.current;
+          gl_Position =
+            projectionMatrix *
+            modelViewMatrix *
+            vec4(position, 1.0);
+        }
+      `,
 
-      materialRef.current.uniforms.uVelocity.value =
-        reducedMotion
-          ? 0
-          : interaction.velocity.current;
+      fragmentShader: `
+        uniform float uTime;
+        uniform vec2 uPointer;
 
-      meshRef.current.rotation.z =
-        state.clock.elapsedTime *
-        0.015;
+        varying vec2 vUv;
 
-      const scale =
-        1.0 +
-        (
-          reducedMotion
-            ? 0
-            : interaction.scroll.current
-        ) *
-          0.5;
+        #define PI 3.14159265359
 
-      meshRef.current.scale.lerp(
-        new THREE.Vector3(
-          scale,
-          scale,
-          scale
-        ),
-        0.03
-      );
-    }
-  );
+        void main() {
+          vec2 uv =
+            vUv -
+            vec2(0.5);
+
+          float radius =
+            length(uv);
+
+          float angle =
+            atan(
+              uv.y,
+              uv.x
+            );
+
+          /* Breathing */
+          float breath =
+            0.5 +
+            0.5 *
+            sin(
+              uTime * 1.2
+            );
+
+          /* Concentric geometry */
+          float rings =
+            sin(
+              radius * 62.0 -
+              uTime * 1.6
+            );
+
+          float ringMask =
+            smoothstep(
+              0.15,
+              0.9,
+              rings
+            );
+
+          /* Radial energy */
+          float rays =
+            pow(
+              max(
+                0.0,
+                cos(angle * 18.0)
+              ),
+              14.0
+            );
+
+          /* Cursor deformation */
+          float cursor =
+            distance(
+              uv,
+              uPointer * 0.12
+            );
+
+          float cursorGlow =
+            smoothstep(
+              0.55,
+              0.0,
+              cursor
+            );
+
+          vec3 lime =
+            vec3(
+              0.705,
+              1.0,
+              0.22
+            );
+
+          vec3 gold =
+            vec3(
+              0.91,
+              0.81,
+              0.51
+            );
+
+          vec3 violet =
+            vec3(
+              0.22,
+              0.08,
+              0.35
+            );
+
+          vec3 color =
+            mix(
+              violet,
+              lime,
+              1.0 - radius * 1.6
+            );
+
+          color =
+            mix(
+              color,
+              gold,
+              ringMask * 0.35
+            );
+
+          color +=
+            lime *
+            rays *
+            0.65;
+
+          color +=
+            gold *
+            cursorGlow *
+            0.35;
+
+          float core =
+            smoothstep(
+              0.18,
+              0.0,
+              radius
+            );
+
+          float edge =
+            smoothstep(
+              0.52,
+              0.24,
+              radius
+            );
+
+          float alpha =
+            edge *
+            (
+              0.2 +
+              core * 0.85 +
+              breath * 0.08
+            );
+
+          gl_FragColor =
+            vec4(
+              color,
+              alpha
+            );
+        }
+      `,
+    });
+  }, []);
+
+  useFrame((_, delta) => {
+    material.uniforms.uTime.value +=
+      delta;
+
+    material.uniforms.uPointer.value.lerp(
+      scene.pointer,
+      0.08,
+    );
+  });
 
   return (
-    <mesh
-      ref={meshRef}
-      position={[0, 0, -0.7]}
-    >
-      <planeGeometry
-        args={[11, 11]}
-      />
+    <mesh>
+      <circleGeometry args={[1.45, 128]} />
 
-      <shaderMaterial
-        ref={materialRef}
-        transparent
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-        vertexShader={`
-          varying vec2 vUv;
-
-          void main() {
-            vUv = uv;
-
-            gl_Position =
-              projectionMatrix *
-              modelViewMatrix *
-              vec4(
-                position,
-                1.0
-              );
-          }
-        `}
-        fragmentShader={`
-          uniform float uTime;
-          uniform float uScroll;
-          uniform float uVelocity;
-
-          varying vec2 vUv;
-
-          void main() {
-            vec2 centered =
-              vUv -
-              vec2(0.5);
-
-            centered.x *= 1.05;
-
-            float distanceFromCenter =
-              length(centered);
-
-            float glow =
-              smoothstep(
-                0.72,
-                0.0,
-                distanceFromCenter
-              );
-
-            float innerGlow =
-              smoothstep(
-                0.34,
-                0.0,
-                distanceFromCenter
-              );
-
-            float waves =
-              sin(
-                distanceFromCenter *
-                  38.0 -
-                uTime * 0.65
-              ) *
-              0.5 +
-              0.5;
-
-            float energy =
-              0.18 +
-              uScroll * 0.18 +
-              uVelocity * 0.3;
-
-            vec3 lime =
-              vec3(
-                0.705,
-                1.0,
-                0.223
-              );
-
-            vec3 white =
-              vec3(1.0);
-
-            vec3 color =
-              mix(
-                lime,
-                white,
-                innerGlow * 0.72
-              );
-
-            float alpha =
-              glow *
-              (
-                energy +
-                waves *
-                0.025
-              );
-
-            gl_FragColor =
-              vec4(
-                color,
-                alpha
-              );
-          }
-        `}
-        uniforms={{
-          uTime: {
-            value: 0,
-          },
-          uScroll: {
-            value: 0,
-          },
-          uVelocity: {
-            value: 0,
-          },
-        }}
+      <primitive
+        object={material}
+        attach="material"
       />
     </mesh>
   );
 }
 
-/* =========================================================
-   GALAXY SCENE
-========================================================= */
+/* -------------------------------------------------------------------------- */
+/*                                  CAMERA                                    */
+/* -------------------------------------------------------------------------- */
 
-function GalaxyScene({
-  interaction,
-  reducedMotion,
-}: GalaxySceneProps) {
-  const sceneRef =
-    useRef<THREE.Group>(null);
+function LivingCamera({
+  scene,
+}: {
+  scene: SceneState;
+}) {
+  const { camera } = useThree();
 
-  useFrame(
-    (state) => {
-      if (!sceneRef.current) {
-        return;
-      }
+  useFrame((_, delta) => {
+    const targetX =
+      scene.pointer.x * 0.42;
 
-      const scroll =
-        reducedMotion
-          ? 0
-          : interaction.scroll.current;
+    const targetY =
+      scene.pointer.y * 0.24;
 
-      const velocity =
-        reducedMotion
-          ? 0
-          : interaction.velocity.current;
+    const targetZ =
+      9.5 -
+      scene.scroll * 1.2 +
+      scene.velocity * 0.08;
 
-      /*
-       * Cinematic global galaxy movement.
-       */
+    camera.position.x = THREE.MathUtils.damp(
+      camera.position.x,
+      targetX,
+      2.2,
+      delta,
+    );
 
-      sceneRef.current.rotation.y =
-        THREE.MathUtils.lerp(
-          sceneRef.current.rotation.y,
-          interaction.pointer.current.x *
-              0.16 +
-            scroll * 0.35,
-          0.025
-        );
+    camera.position.y = THREE.MathUtils.damp(
+      camera.position.y,
+      targetY,
+      2.2,
+      delta,
+    );
 
-      sceneRef.current.rotation.x =
-        THREE.MathUtils.lerp(
-          sceneRef.current.rotation.x,
-          interaction.pointer.current.y *
-              0.1 -
-            scroll * 0.08,
-          0.025
-        );
+    camera.position.z = THREE.MathUtils.damp(
+      camera.position.z,
+      targetZ,
+      1.8,
+      delta,
+    );
 
-      sceneRef.current.rotation.z =
-        THREE.MathUtils.lerp(
-          sceneRef.current.rotation.z,
-          scroll * 0.12,
-          0.025
-        );
+    camera.rotation.z = THREE.MathUtils.damp(
+      camera.rotation.z,
+      scene.pointer.x * 0.018,
+      2,
+      delta,
+    );
 
-      /*
-       * Galaxy expands toward the viewer
-       * while scrolling.
-       */
+    camera.lookAt(
+      0,
+      0,
+      0,
+    );
+  });
 
-      const targetScale =
-        1 +
-        scroll * 0.7 +
-        velocity * 0.18;
+  return null;
+}
 
-      const target =
-        new THREE.Vector3(
-          targetScale,
-          targetScale,
-          targetScale
-        );
+/* -------------------------------------------------------------------------- */
+/*                                   SCENE                                    */
+/* -------------------------------------------------------------------------- */
 
-      sceneRef.current.scale.lerp(
-        target,
-        0.025
-      );
-    }
-  );
-
+function LivingCosmos({
+  scene,
+}: {
+  scene: SceneState;
+}) {
   return (
-    <group ref={sceneRef}>
-      <NebulaAura
-        interaction={interaction}
-        reducedMotion={reducedMotion}
+    <>
+      <LivingCamera scene={scene} />
+
+      <ambientLight
+        intensity={0.15}
       />
 
-      <Nebula
-        count={
-          reducedMotion
-            ? 2200
-            : 5200
-        }
-        radius={5.2}
-        interaction={interaction}
-        reducedMotion={reducedMotion}
-      />
-
-      <DustCloud
-        count={
-          reducedMotion
-            ? 900
-            : 2400
-        }
-        interaction={interaction}
-        reducedMotion={reducedMotion}
-      />
-
-      <GalaxyFilaments
-        interaction={interaction}
-        reducedMotion={reducedMotion}
-      />
-
-      <HolographicRings
-        interaction={interaction}
-        reducedMotion={reducedMotion}
-      />
-
-      <Sparkles
-        count={
-          reducedMotion
-            ? 90
-            : 320
-        }
-        scale={[11, 7, 11]}
-        size={
-          reducedMotion
-            ? 0.7
-            : 1.25
-        }
-        speed={
-          reducedMotion
-            ? 0
-            : 0.16
-        }
-        opacity={0.48}
+      <pointLight
+        position={[0, 0, 4]}
+        intensity={4}
+        distance={10}
         color="#B4FF39"
-        noise={1.3}
       />
 
-      <Sparkles
-        count={
-          reducedMotion
-            ? 45
-            : 140
-        }
-        scale={[7, 4, 7]}
-        size={0.75}
-        speed={
-          reducedMotion
-            ? 0
-            : 0.1
-        }
-        opacity={0.7}
-        color="#ffffff"
-        noise={0.8}
+      <pointLight
+        position={[-4, 2, 2]}
+        intensity={2}
+        distance={12}
+        color="#BFA96E"
       />
-    </group>
+
+      <LivingCore scene={scene} />
+
+      <LivingRings scene={scene} />
+
+      <LivingNebula scene={scene} />
+
+      <Sparkles
+        count={280}
+        scale={[12, 8, 12]}
+        size={1.6}
+        speed={0.18}
+        opacity={0.28}
+        color="#B4FF39"
+      />
+    </>
   );
 }
 
-/* =========================================================
-   HUD CORNER
-========================================================= */
+/* -------------------------------------------------------------------------- */
+/*                                    HUD                                     */
+/* -------------------------------------------------------------------------- */
 
-function HUDCorner({
+function Corner({
   position,
 }: {
-  position:
-    | 'tl'
-    | 'tr'
-    | 'bl'
-    | 'br';
+  position: "tl" | "tr" | "bl" | "br";
 }) {
-  const positions = {
-    tl: 'left-5 top-5',
-    tr: 'right-5 top-5',
-    bl: 'bottom-5 left-5',
-    br: 'bottom-5 right-5',
-  };
-
-  const borders = {
-    tl: 'border-l border-t',
-    tr: 'border-r border-t',
-    bl: 'border-b border-l',
-    br: 'border-b border-r',
+  const styles = {
+    tl: "left-6 top-6 border-l border-t",
+    tr: "right-6 top-6 border-r border-t",
+    bl: "bottom-6 left-6 border-b border-l",
+    br: "bottom-6 right-6 border-b border-r",
   };
 
   return (
     <div
-      className={`pointer-events-none absolute z-20 h-10 w-10 ${positions[position]} ${borders[position]} border-[#B4FF39]/35`}
-    >
-      <span className="absolute h-[2px] w-1.5 bg-[#B4FF39]" />
-    </div>
+      className={`pointer-events-none absolute z-30 h-12 w-12 border-[#B4FF39]/25 ${styles[position]}`}
+    />
   );
 }
 
-/* =========================================================
-   HERO
-========================================================= */
+function SignalDot() {
+  return (
+    <span className="relative inline-flex h-2.5 w-2.5">
+      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#B4FF39]/60" />
+      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#B4FF39]" />
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                    HERO                                    */
+/* -------------------------------------------------------------------------- */
 
 export default function Hero() {
-  const reducedMotion =
-    useReducedMotion();
-
   const heroRef =
-    useRef<HTMLElement>(null);
+    useRef<HTMLElement | null>(null);
 
   const introRef =
-    useRef<HTMLDivElement>(null);
+    useRef<HTMLDivElement | null>(null);
 
   const titleRef =
-    useRef<HTMLHeadingElement>(null);
+    useRef<HTMLHeadingElement | null>(null);
 
   const subtitleRef =
-    useRef<HTMLDivElement>(null);
+    useRef<HTMLParagraphElement | null>(null);
 
   const ctaRef =
-    useRef<HTMLAnchorElement>(null);
+    useRef<HTMLAnchorElement | null>(null);
 
-  const pointerRef =
-    useRef(
-      new THREE.Vector2(0, 0)
-    );
+  const scene = useSceneState();
 
-  const scrollRef =
-    useRef(0);
-
-  const velocityRef =
-    useRef(0);
-
-  const previousScroll =
-    useRef(0);
-
-  const interaction =
-    useMemo<SceneInteraction>(
-      () => ({
-        pointer: pointerRef,
-        scroll: scrollRef,
-        velocity: velocityRef,
-      }),
-      []
-    );
+  const shouldReduceMotion =
+    useReducedMotion();
 
   const {
     scrollYProgress,
   } = useScroll({
     target: heroRef,
     offset: [
-      'start start',
-      'end start',
+      "start start",
+      "end start",
     ],
   });
 
-  /* =======================================================
-     SCROLL INTERACTION
-  ======================================================= */
+  /* ---------------------------------------------------------------------- */
+  /*                                SCROLL                                  */
+  /* ---------------------------------------------------------------------- */
 
   useMotionValueEvent(
     scrollYProgress,
-    'change',
-    (latest) => {
-      const delta =
-        latest -
-        previousScroll.current;
-
-      scrollRef.current =
-        latest;
-
-      if (!reducedMotion) {
-        velocityRef.current =
-          Math.min(
-            Math.abs(delta) * 150,
-            1
-          );
-      }
-
-      previousScroll.current =
-        latest;
-    }
+    "change",
+    (value) => {
+      scene.scroll = value;
+    },
   );
 
-  /* =======================================================
-     POINTER INTERACTION
-  ======================================================= */
+  /* ---------------------------------------------------------------------- */
+  /*                              POINTER                                   */
+  /* ---------------------------------------------------------------------- */
 
   useEffect(() => {
+    if (shouldReduceMotion) return;
+
     const handlePointerMove = (
-      event: PointerEvent
+      event: PointerEvent,
     ) => {
       const x =
-        (
-          event.clientX /
-            window.innerWidth -
-          0.5
-        ) * 2;
+        event.clientX /
+          window.innerWidth *
+          2 -
+        1;
 
       const y =
-        (
-          0.5 -
-          event.clientY /
-            window.innerHeight
-        ) * 2;
+        -(event.clientY /
+          window.innerHeight *
+          2 -
+          1);
 
-      pointerRef.current.set(
+      scene.pointer.set(
         x,
-        y
+        y,
       );
     };
 
+    const handlePointerLeave = () => {
+      scene.pointer.multiplyScalar(0.65);
+    };
+
     window.addEventListener(
-      'pointermove',
+      "pointermove",
       handlePointerMove,
       {
         passive: true,
-      }
+      },
+    );
+
+    window.addEventListener(
+      "pointerleave",
+      handlePointerLeave,
     );
 
     return () => {
       window.removeEventListener(
-        'pointermove',
-        handlePointerMove
+        "pointermove",
+        handlePointerMove,
+      );
+
+      window.removeEventListener(
+        "pointerleave",
+        handlePointerLeave,
       );
     };
-  }, []);
+  }, [scene, shouldReduceMotion]);
 
-  /* =======================================================
-     VELOCITY DECAY
-  ======================================================= */
+  /* ---------------------------------------------------------------------- */
+  /*                           VELOCITY FIELD                               */
+  /* ---------------------------------------------------------------------- */
 
   useEffect(() => {
-    let frame = 0;
+    if (shouldReduceMotion) return;
 
-    const decay = () => {
-      velocityRef.current *=
-        0.92;
+    let previousScroll = 0;
+    let raf = 0;
 
-      frame =
+    const update = () => {
+      const current =
+        window.scrollY;
+
+      const velocity =
+        current -
+        previousScroll;
+
+      previousScroll = current;
+
+      scene.velocity =
+        THREE.MathUtils.lerp(
+          scene.velocity,
+          velocity,
+          0.15,
+        );
+
+      raf =
         requestAnimationFrame(
-          decay
+          update,
         );
     };
 
-    frame =
+    raf =
       requestAnimationFrame(
-        decay
+        update,
       );
 
     return () => {
-      cancelAnimationFrame(
-        frame
-      );
+      cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [scene, shouldReduceMotion]);
 
-  /* =======================================================
-     CINEMATIC INTRO
-  ======================================================= */
+  /* ---------------------------------------------------------------------- */
+  /*                                  INTRO                                 */
+  /* ---------------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (shouldReduceMotion) return;
+
+    const ctx =
+      gsap.context(() => {
+        const tl =
+          gsap.timeline({
+            defaults: {
+              ease: "power4.out",
+            },
+          });
+
+        tl.fromTo(
+          introRef.current,
+          {
+            opacity: 0,
+            y: 20,
+          },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 1.2,
+          },
+        );
+
+        tl.fromTo(
+          titleRef.current,
+          {
+            opacity: 0,
+            y: 80,
+            rotateX: 18,
+            filter:
+              "blur(14px)",
+          },
+          {
+            opacity: 1,
+            y: 0,
+            rotateX: 0,
+            filter:
+              "blur(0px)",
+            duration: 1.35,
+          },
+          "-=0.8",
+        );
+
+        tl.fromTo(
+          subtitleRef.current,
+          {
+            opacity: 0,
+            y: 30,
+          },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.9,
+          },
+          "-=0.65",
+        );
+
+        tl.fromTo(
+          ctaRef.current,
+          {
+            opacity: 0,
+            y: 24,
+            scale: 0.96,
+          },
+          {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.8,
+          },
+          "-=0.45",
+        );
+      }, heroRef);
+
+    return () =>
+      ctx.revert();
+  }, [shouldReduceMotion]);
+
+  /* ---------------------------------------------------------------------- */
+  /*                              MAGNETIC CTA                              */
+  /* ---------------------------------------------------------------------- */
 
   useEffect(() => {
     if (
-      reducedMotion ||
-      !introRef.current
+      shouldReduceMotion ||
+      !ctaRef.current
     ) {
       return;
     }
 
-    const context =
-      gsap.context(() => {
-        gsap.set(
-          introRef.current,
-          {
-            opacity: 0,
-            scale: 1.035,
-          }
+    const button =
+      ctaRef.current;
+
+    const handleMove = (
+      event: PointerEvent,
+    ) => {
+      const rect =
+        button.getBoundingClientRect();
+
+      const x =
+        event.clientX -
+        (rect.left +
+          rect.width / 2);
+
+      const y =
+        event.clientY -
+        (rect.top +
+          rect.height / 2);
+
+      const distance =
+        Math.sqrt(
+          x * x +
+          y * y,
         );
 
-        if (titleRef.current) {
-          gsap.set(
-            titleRef.current,
-            {
-              opacity: 0,
-              y: 35,
-              filter:
-                'blur(14px)',
-            }
-          );
-        }
+      if (distance > 140) {
+        gsap.to(button, {
+          x: 0,
+          y: 0,
+          duration: 0.45,
+          ease: "power3.out",
+        });
 
-        if (subtitleRef.current) {
-          gsap.set(
-            subtitleRef.current,
-            {
-              opacity: 0,
-              y: 24,
-            }
-          );
-        }
+        return;
+      }
 
-        if (ctaRef.current) {
-          gsap.set(
-            ctaRef.current,
-            {
-              opacity: 0,
-              y: 18,
-            }
-          );
-        }
-
-        const timeline =
-          gsap.timeline();
-
-        timeline.to(
-          introRef.current,
-          {
-            opacity: 1,
-            scale: 1,
-            duration: 1.8,
-            ease: "jetonEase",
-          }
-        );
-
-        if (titleRef.current) {
-          timeline.to(
-            titleRef.current,
-            {
-              opacity: 1,
-              y: 0,
-              filter:
-                'blur(0px)',
-              duration: 1.4,
-              ease: "jetonEase",
-            },
-            '-=1.15'
-          );
-        }
-
-        if (subtitleRef.current) {
-          timeline.to(
-            subtitleRef.current,
-            {
-              opacity: 1,
-              y: 0,
-              duration: 0.9,
-              ease: "power3.out",
-            },
-            '-=0.75'
-          );
-        }
-
-        if (ctaRef.current) {
-          timeline.to(
-            ctaRef.current,
-            {
-              opacity: 1,
-              y: 0,
-              duration: 0.75,
-              ease: "power3.out",
-            },
-            '-=0.55'
-          );
-        }
+      gsap.to(button, {
+        x: x * 0.18,
+        y: y * 0.18,
+        duration: 0.35,
+        ease: "power3.out",
       });
+    };
 
-    return () =>
-      context.revert();
-  }, [reducedMotion]);
+    const handleLeave = () => {
+      gsap.to(button, {
+        x: 0,
+        y: 0,
+        duration: 0.55,
+        ease: "elastic.out(1, 0.45)",
+      });
+    };
+
+    button.addEventListener(
+      "pointermove",
+      handleMove,
+    );
+
+    button.addEventListener(
+      "pointerleave",
+      handleLeave,
+    );
+
+    return () => {
+      button.removeEventListener(
+        "pointermove",
+        handleMove,
+      );
+
+      button.removeEventListener(
+        "pointerleave",
+        handleLeave,
+      );
+    };
+  }, [shouldReduceMotion]);
+
+  /* ---------------------------------------------------------------------- */
+  /*                                 RENDER                                 */
+  /* ---------------------------------------------------------------------- */
 
   return (
     <section
       ref={heroRef}
-      className="relative min-h-screen overflow-hidden bg-black text-white"
+      className="relative min-h-[180vh] overflow-hidden bg-[#050A14] text-white"
     >
-      {/* ===================================================
-          ATMOSPHERIC BACKGROUND
-      =================================================== */}
+      {/* ------------------------------------------------------------------ */}
+      {/* ATMOSPHERE                                                         */}
+      {/* ------------------------------------------------------------------ */}
 
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 z-0">
         <div
-          className="
-            absolute
-            left-1/2
-            top-[42%]
-            h-[55vw]
-            w-[55vw]
-            max-h-[850px]
-            max-w-[850px]
-            -translate-x-1/2
-            -translate-y-1/2
-            rounded-full
-            bg-[#B4FF39]/[0.045]
-            blur-[130px]
-          "
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(circle at 50% 42%, rgba(180,255,57,0.08), transparent 26%), radial-gradient(circle at 20% 20%, rgba(42,27,71,0.45), transparent 32%), radial-gradient(circle at 80% 70%, rgba(10,22,40,0.95), transparent 45%), #050A14",
+          }}
         />
 
         <div
-          className="
-            absolute
-            left-1/2
-            top-1/2
-            h-[35vw]
-            w-[35vw]
-            max-h-[520px]
-            max-w-[520px]
-            -translate-x-1/2
-            -translate-y-1/2
-            rounded-full
-            bg-white/[0.025]
-            blur-[100px]
-          "
-        />
-
-        <div
-          className="
-            absolute
-            inset-0
-            bg-[radial-gradient(circle_at_center,transparent_20%,rgba(0,0,0,0.35)_62%,#000_100%)]
-          "
-        />
-
-        <div
-          className="
-            absolute
-            inset-0
-            opacity-[0.08]
-            [background-image:linear-gradient(rgba(255,255,255,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.16)_1px,transparent_1px)]
-            [background-size:80px_80px]
-          "
-        />
-
-        <div
-          className="
-            absolute
-            inset-x-0
-            top-0
-            h-px
-            bg-gradient-to-r
-            from-transparent
-            via-[#B4FF39]/50
-            to-transparent
-          "
+          className="absolute inset-0 opacity-30"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(180,255,57,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(180,255,57,0.035) 1px, transparent 1px)",
+            backgroundSize:
+              "72px 72px",
+            maskImage:
+              "radial-gradient(circle at center, black, transparent 75%)",
+            WebkitMaskImage:
+              "radial-gradient(circle at center, black, transparent 75%)",
+          }}
         />
       </div>
 
-      {/* ===================================================
-          3D GALAXY
-      =================================================== */}
+      {/* ------------------------------------------------------------------ */}
+      {/* THREE SCENE                                                        */}
+      {/* ------------------------------------------------------------------ */}
 
-      <div className="pointer-events-none absolute inset-0 z-[1]">
+      <div className="pointer-events-none fixed inset-0 z-0">
         <Canvas
           camera={{
-            position: [0, 0, 8],
+            position: [
+              0,
+              0,
+              9.5,
+            ],
             fov: 42,
+            near: 0.1,
+            far: 100,
           }}
-          dpr={[1, 1.6]}
+          dpr={[1, 1.5]}
           gl={{
             antialias: true,
             alpha: true,
             powerPreference:
-              'high-performance',
+              "high-performance",
           }}
         >
-          <ambientLight
-            intensity={0.18}
-          />
-
-          <pointLight
-            position={[0, 0, 2]}
-            color="#B4FF39"
-            intensity={8}
-            distance={8}
-            decay={2}
-          />
-
-          <GalaxyScene
-            interaction={
-              interaction
-            }
-            reducedMotion={
-              Boolean(
-                reducedMotion
-              )
-            }
+          <LivingCosmos
+            scene={scene}
           />
         </Canvas>
       </div>
 
-      {/* ===================================================
-          SCANLINES
-      =================================================== */}
+      {/* ------------------------------------------------------------------ */}
+      {/* VIGNETTE                                                           */}
+      {/* ------------------------------------------------------------------ */}
 
       <div
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-          z-[4]
-          opacity-[0.035]
-          [background-image:linear-gradient(to_bottom,rgba(255,255,255,0.5)_1px,transparent_1px)]
-          [background-size:100%_4px]
-        "
+        className="pointer-events-none fixed inset-0 z-20"
+        style={{
+          background:
+            "radial-gradient(circle, transparent 30%, rgba(5,10,20,0.18) 62%, rgba(5,10,20,0.88) 100%)",
+        }}
       />
 
+      {/* ------------------------------------------------------------------ */}
+      {/* SCANLINES                                                          */}
+      {/* ------------------------------------------------------------------ */}
+
       <div
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-          z-[4]
-          bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.6)_100%)]
-        "
+        className="pointer-events-none fixed inset-0 z-20 opacity-[0.035]"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(255,255,255,0.8) 4px)",
+        }}
       />
 
-      {/* ===================================================
-          HUD FRAME
-      =================================================== */}
+      {/* ------------------------------------------------------------------ */}
+      {/* HUD                                                                */}
+      {/* ------------------------------------------------------------------ */}
 
-      <HUDCorner position="tl" />
-      <HUDCorner position="tr" />
-      <HUDCorner position="bl" />
-      <HUDCorner position="br" />
+      <Corner position="tl" />
+      <Corner position="tr" />
+      <Corner position="bl" />
+      <Corner position="br" />
 
-      <div className="pointer-events-none absolute inset-5 z-10 border border-white/[0.035]" />
-
-      {/* ===================================================
-          TOP HUD
-      =================================================== */}
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          left-1/2
-          top-7
-          z-20
-          flex
-          -translate-x-1/2
-          items-center
-          gap-3
-          font-mono
-          text-[8px]
-          uppercase
-          tracking-[0.35em]
-          text-white/40
-        "
-      >
-        <span className="h-px w-8 bg-[#B4FF39]/50" />
-
-        <span>
-          COFIWORK // SYSTEM ONLINE
-        </span>
-
-        <span className="h-px w-8 bg-[#B4FF39]/50" />
+      <div className="pointer-events-none fixed left-8 top-1/2 z-30 hidden -translate-y-1/2 lg:block">
+        <div className="flex -rotate-90 origin-left items-center gap-3 text-[9px] uppercase tracking-[0.42em] text-white/30">
+          <span>COFIWORK</span>
+          <span className="h-px w-12 bg-white/20" />
+          <span>Digital Atelier</span>
+        </div>
       </div>
 
-      {/* ===================================================
-          MAIN CONTENT
-      =================================================== */}
-
-      <div
-        ref={introRef}
-        className="
-          relative
-          z-10
-          flex
-          min-h-screen
-          flex-col
-          items-center
-          justify-center
-          px-5
-          pb-16
-          pt-24
-        "
-      >
-        {/* -----------------------------------------------
-            MICRO TELEMETRY
-        ------------------------------------------------ */}
-
-        <div
-          className="
-            mb-8
-            flex
-            items-center
-            gap-4
-            font-mono
-            text-[8px]
-            uppercase
-            tracking-[0.32em]
-            text-white/35
-          "
-        >
-          <span>
-            SYSTEM // 001
-          </span>
-
-          <span className="h-px w-8 bg-white/20" />
-
-          <span className="text-[#B4FF39]/70">
-            SIGNAL STABLE
-          </span>
-
-          <span className="h-px w-8 bg-white/20" />
-
-          <span>
-            CUSTOM BUILD
-          </span>
+      <div className="pointer-events-none fixed right-8 top-1/2 z-30 hidden -translate-y-1/2 lg:block">
+        <div className="flex rotate-90 origin-right items-center gap-3 text-[9px] uppercase tracking-[0.42em] text-white/30">
+          <span>Creative Systems</span>
+          <span className="h-px w-12 bg-white/20" />
+          <span>∞</span>
         </div>
+      </div>
 
-        {/* =================================================
-            TITLE
-        ================================================= */}
+      {/* ------------------------------------------------------------------ */}
+      {/* CONTENT                                                            */}
+      {/* ------------------------------------------------------------------ */}
 
-        <h1
-          ref={titleRef}
-          className="
-            relative
-            max-w-[1100px]
-            text-center
-            font-black
-            uppercase
-            leading-[0.83]
-            tracking-[-0.055em]
-          "
-        >
-          <span className="relative block text-[clamp(4rem,11vw,9.5rem)]">
-            <span className="relative z-10">
-              TU WEB
-            </span>
-
-            <span
-              className="
-                pointer-events-none
-                absolute
-                inset-0
-                translate-y-[2px]
-                text-[#B4FF39]/10
-                blur-[18px]
-              "
-            >
-              TU WEB
-            </span>
-          </span>
-
-          <span className="relative block text-[clamp(4rem,11vw,9.5rem)]">
-            <span className="relative z-10">
-              TAL COMO
-            </span>
-
-            <span
-              className="
-                pointer-events-none
-                absolute
-                inset-0
-                translate-y-[2px]
-                text-[#B4FF39]/10
-                blur-[18px]
-              "
-            >
-              TAL COMO
-            </span>
-          </span>
-
-          <span className="relative block text-[clamp(4rem,11vw,9.5rem)]">
-            <span className="relative z-10 text-white">
-              NECESITÁS.
-            </span>
-
-            <span
-              className="
-                pointer-events-none
-                absolute
-                inset-0
-                text-[#B4FF39]/20
-                blur-[24px]
-              "
-            >
-              NECESITÁS.
-            </span>
-
-            <span
-              className="
-                absolute
-                -bottom-3
-                left-1/2
-                h-px
-                w-[70%]
-                -translate-x-1/2
-                bg-gradient-to-r
-                from-transparent
-                via-[#B4FF39]
-                to-transparent
-                opacity-60
-              "
-            />
-          </span>
-        </h1>
-
-        {/* =================================================
-            TITLE METADATA
-        ================================================= */}
-
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl items-center px-6 pb-24 pt-28 sm:px-10 lg:px-16">
         <div
-          className="
-            mt-7
-            flex
-            items-center
-            gap-3
-            font-mono
-            text-[8px]
-            uppercase
-            tracking-[0.3em]
-            text-white/30
-          "
+          ref={introRef}
+          className="w-full"
         >
-          <span>
-            COFIWORK
-          </span>
+          {/* eyebrow */}
 
-          <span className="h-px w-7 bg-[#B4FF39]/50" />
+          <div className="mb-8 flex items-center gap-3">
+            <SignalDot />
 
-          <span>
-            IDENTITY SYSTEM
-          </span>
-
-          <span className="h-px w-7 bg-[#B4FF39]/50" />
-
-          <span className="text-[#B4FF39]/65">
-            001
-          </span>
-        </div>
-
-        {/* =================================================
-            SUBTITLE HUD
-        ================================================= */}
-
-        <motion.div
-          ref={subtitleRef}
-          className="
-            relative
-            mt-10
-            w-full
-            max-w-[700px]
-          "
-        >
-          <div
-            className="
-              absolute
-              -inset-3
-              rounded-full
-              bg-[#B4FF39]/[0.035]
-              blur-3xl
-            "
-          />
-
-          <div
-            className="
-              relative
-              overflow-hidden
-              border
-              border-white/[0.09]
-              bg-black/45
-              px-6
-              py-5
-              backdrop-blur-md
-            "
-          >
-            <div
-              className="
-                absolute
-                inset-x-0
-                top-0
-                h-px
-                bg-gradient-to-r
-                from-transparent
-                via-[#B4FF39]/60
-                to-transparent
-              "
-            />
-
-            <div
-              className="
-                mb-4
-                flex
-                items-center
-                justify-between
-                font-mono
-                text-[7px]
-                uppercase
-                tracking-[0.3em]
-              "
-            >
-              <span className="text-[#B4FF39]/75">
-                COFIWORK // CORE MESSAGE
-              </span>
-
-              <span className="text-white/30">
-                SIGNAL // STABLE
-              </span>
-            </div>
-
-            <p
-              className="
-                text-center
-                text-[15px]
-                font-medium
-                leading-relaxed
-                tracking-[-0.01em]
-                text-white/75
-                md:text-[17px]
-              "
-            >
-              Sin plantillas. Sin copias.
-              <br className="sm:hidden" />{' '}
-              Hecha desde cero tal cual
-              la imaginás.
-            </p>
-
-            <div
-              className="
-                mt-5
-                h-px
-                bg-gradient-to-r
-                from-transparent
-                via-white/10
-                to-transparent
-              "
-            />
-
-            <div
-              className="
-                mt-4
-                flex
-                flex-wrap
-                items-center
-                justify-center
-                gap-x-5
-                gap-y-2
-                font-mono
-                text-[7px]
-                uppercase
-                tracking-[0.28em]
-                text-white/30
-              "
-            >
-              <span>
-                DESIGN // CUSTOM
-              </span>
-
-              <span className="text-[#B4FF39]/55">
-                NO TEMPLATES
-              </span>
-
-              <span>
-                BUILD // 001
-              </span>
-            </div>
+            <span className="text-[10px] font-medium uppercase tracking-[0.36em] text-white/50">
+              Sistema creativo activo
+            </span>
           </div>
-        </motion.div>
 
-        {/* =================================================
-            SYSTEMS
-        ================================================= */}
+          {/* title */}
 
-        <div
-          className="
-            mt-8
-            grid
-            w-full
-            max-w-[850px]
-            grid-cols-1
-            gap-2
-            sm:grid-cols-3
-          "
-        >
-          {[
-            {
-              title: 'ÚNICA',
-              desc: 'Nadie más tiene una igual',
-              code: 'SYSTEM // UNIQUE',
-            },
-            {
-              title: 'RÁPIDA',
-              desc: 'Carga al instante',
-              code: 'SYSTEM // SPEED',
-            },
-            {
-              title: 'TUYA',
-              desc: 'Construida para vos',
-              code: 'SYSTEM // CUSTOM',
-            },
-          ].map(
-            (item, index) => (
-              <div
-                key={item.title}
-                className="
-                  group
-                  relative
-                  overflow-hidden
-                  border
-                  border-white/[0.07]
-                  bg-black/35
-                  px-4
-                  py-4
-                  backdrop-blur-sm
-                  transition-all
-                  duration-500
-                  hover:border-[#B4FF39]/25
-                  hover:bg-[#B4FF39]/[0.025]
-                "
-              >
-                <div
-                  className="
-                    absolute
-                    left-0
-                    top-0
-                    h-px
-                    w-0
-                    bg-[#B4FF39]
-                    transition-all
-                    duration-500
-                    group-hover:w-full
-                  "
-                />
-
-                <div
-                  className="
-                    mb-2
-                    flex
-                    items-center
-                    justify-between
-                    font-mono
-                    text-[7px]
-                    uppercase
-                    tracking-[0.25em]
-                    text-white/25
-                  "
-                >
-                  <span>
-                    0{index + 1}
-                  </span>
-
-                  <span>
-                    {item.code}
-                  </span>
-                </div>
-
-                <div className="text-sm font-bold tracking-[0.15em]">
-                  {item.title}
-                </div>
-
-                <div className="mt-1 text-[10px] text-white/40">
-                  {item.desc}
-                </div>
-              </div>
-            )
-          )}
-        </div>
-
-        {/* =================================================
-            CTA
-        ================================================= */}
-
-        <motion.a
-          ref={ctaRef}
-          href={WA_URL}
-          target="_blank"
-          rel="noreferrer"
-          whileHover={
-            reducedMotion
-              ? undefined
-              : {
-                  scale: 1.025,
-                }
-          }
-          whileTap={
-            reducedMotion
-              ? undefined
-              : {
-                  scale: 0.98,
-                }
-          }
-          className="
-            group
-            relative
-            mt-9
-            inline-flex
-            items-center
-            gap-4
-            overflow-hidden
-            border
-            border-[#B4FF39]/50
-            bg-[#B4FF39]
-            px-7
-            py-4
-            font-mono
-            text-[10px]
-            font-black
-            uppercase
-            tracking-[0.22em]
-            text-black
-            shadow-[0_0_45px_rgba(180,255,57,0.13)]
-            transition-shadow
-            duration-500
-            hover:shadow-[0_0_70px_rgba(180,255,57,0.24)]
-          "
-        >
-          <span
-            className="
-              absolute
-              inset-y-0
-              -left-full
-              w-1/2
-              skew-x-[-20deg]
-              bg-white/45
-              transition-all
-              duration-700
-              group-hover:left-[120%]
-            "
-          />
-
-          <span className="relative z-10">
-            HABLEMOS DE TU PROYECTO
-          </span>
-
-          <span className="relative z-10 text-base">
-            →
-          </span>
-        </motion.a>
-
-        {/* =================================================
-            BOTTOM TELEMETRY
-        ================================================= */}
-
-        <div
-          className="
-            absolute
-            bottom-7
-            left-1/2
-            flex
-            w-[calc(100%-40px)]
-            max-w-[1100px]
-            -translate-x-1/2
-            items-center
-            justify-between
-            font-mono
-            text-[7px]
-            uppercase
-            tracking-[0.3em]
-            text-white/25
-          "
-        >
-          <span>
-            COFIWORK // DIGITAL
-            ARCHITECTURE
-          </span>
-
-          <span className="hidden sm:block">
-            LATENCY // 0.01
-          </span>
-
-          <span>
-            STATUS //{' '}
-            <span className="text-[#B4FF39]/70">
-              ONLINE
+          <h1
+            ref={titleRef}
+            className="max-w-6xl text-balance font-black uppercase leading-[0.82] tracking-[-0.065em]"
+            style={{
+              fontSize:
+                "clamp(4.5rem, 13vw, 12rem)",
+              perspective:
+                "1000px",
+            }}
+          >
+            <span className="block text-white">
+              Ideas
             </span>
-          </span>
+
+            <span
+              className="block"
+              style={{
+                color:
+                  "transparent",
+                WebkitTextStroke:
+                  "1px rgba(180,255,57,0.72)",
+                textShadow:
+                  "0 0 55px rgba(180,255,57,0.12)",
+              }}
+            >
+              que
+            </span>
+
+            <span
+              className="block bg-gradient-to-r from-[#B4FF39] via-[#E7CF82] to-[#B4FF39] bg-clip-text text-transparent"
+            >
+              respiran.
+            </span>
+          </h1>
+
+          {/* subtitle */}
+
+          <p
+            ref={subtitleRef}
+            className="mt-10 max-w-2xl text-base leading-7 text-white/55 sm:text-lg"
+          >
+            Diseñamos experiencias digitales donde
+            estrategia, identidad, tecnología e
+            interacción se convierten en un mismo
+            lenguaje.
+          </p>
+
+          {/* cards */}
+
+          <div className="mt-12 grid max-w-4xl gap-3 sm:grid-cols-3">
+            {[
+              {
+                number: "01",
+                title: "Estrategia",
+                text: "Pensamiento antes que decoración.",
+              },
+              {
+                number: "02",
+                title: "Diseño",
+                text: "Sistemas visuales con carácter propio.",
+              },
+              {
+                number: "03",
+                title: "Tecnología",
+                text: "Interfaces que responden y evolucionan.",
+              },
+            ].map((item) => (
+              <div
+                key={item.number}
+                className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025] p-5 backdrop-blur-md transition duration-500 hover:-translate-y-1 hover:border-[#B4FF39]/30 hover:bg-[#B4FF39]/[0.035]"
+              >
+                <div className="mb-8 flex items-center justify-between">
+                  <span className="text-[9px] tracking-[0.3em] text-[#B4FF39]/60">
+                    {item.number}
+                  </span>
+
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#B4FF39]/50 transition group-hover:bg-[#B4FF39]" />
+                </div>
+
+                <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-white">
+                  {item.title}
+                </h2>
+
+                <p className="mt-2 text-xs leading-5 text-white/35">
+                  {item.text}
+                </p>
+
+                <div className="absolute bottom-0 left-0 h-px w-0 bg-[#B4FF39] transition-all duration-700 group-hover:w-full" />
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+
+          <div className="mt-10 flex flex-col items-start gap-5 sm:flex-row sm:items-center">
+            <a
+              ref={ctaRef}
+              href={WA_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="group relative inline-flex items-center gap-4 overflow-hidden rounded-full border border-[#B4FF39]/40 bg-[#B4FF39] px-7 py-4 text-xs font-bold uppercase tracking-[0.22em] text-[#07100A] shadow-[0_0_50px_rgba(180,255,57,0.12)] transition hover:border-[#E7CF82] hover:bg-[#E7CF82]"
+            >
+              <span className="relative z-10">
+                Empecemos algo
+              </span>
+
+              <span className="relative z-10 text-base transition-transform duration-500 group-hover:translate-x-1">
+                →
+              </span>
+
+              <span className="absolute inset-0 -translate-x-full bg-white/30 transition-transform duration-700 group-hover:translate-x-full" />
+            </a>
+
+            <span className="max-w-xs text-xs leading-5 text-white/30">
+              Una conversación puede ser el
+              comienzo de una experiencia
+              completamente distinta.
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* ===================================================
-          SIDE MARKERS
-      =================================================== */}
+      {/* ------------------------------------------------------------------ */}
+      {/* SCROLL CUE                                                        */}
+      {/* ------------------------------------------------------------------ */}
 
-      <div
-        className="
-          pointer-events-none
-          absolute
-          left-6
-          top-1/2
-          z-20
-          hidden
-          -translate-y-1/2
-          flex-col
-          gap-8
-          font-mono
-          text-[7px]
-          uppercase
-          tracking-[0.3em]
-          text-white/20
-          lg:flex
-        "
-      >
-        <span className="[writing-mode:vertical-rl]">
-          DIGITAL SYSTEM
-        </span>
+      <div className="absolute bottom-10 left-1/2 z-30 -translate-x-1/2">
+        <div className="flex flex-col items-center gap-3">
+          <span className="text-[8px] uppercase tracking-[0.45em] text-white/30">
+            Explorar
+          </span>
 
-        <span className="h-16 w-px bg-gradient-to-b from-transparent via-[#B4FF39]/40 to-transparent" />
-
-        <span className="[writing-mode:vertical-rl] text-[#B4FF39]/45">
-          001 // CORE
-        </span>
+          <div className="relative h-14 w-px overflow-hidden bg-white/10">
+            <motion.div
+              className="absolute left-0 top-0 h-5 w-px bg-[#B4FF39]"
+              animate={{
+                y: [
+                  "-100%",
+                  "300%",
+                ],
+              }}
+              transition={{
+                duration: 1.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
+          </div>
+        </div>
       </div>
 
-      <div
-        className="
-          pointer-events-none
-          absolute
-          right-6
-          top-1/2
-          z-20
-          hidden
-          -translate-y-1/2
-          flex-col
-          gap-8
-          font-mono
-          text-[7px]
-          uppercase
-          tracking-[0.3em]
-          text-white/20
-          lg:flex
-        "
-      >
-        <span className="[writing-mode:vertical-rl]">
-          CUSTOM EXPERIENCE
-        </span>
+      {/* ------------------------------------------------------------------ */}
+      {/* PROGRESS                                                           */}
+      {/* ------------------------------------------------------------------ */}
 
-        <span className="h-16 w-px bg-gradient-to-b from-transparent via-white/20 to-transparent" />
-
-        <span className="[writing-mode:vertical-rl]">
-          BUILD // ONLINE
-        </span>
-      </div>
-
-      {/* ===================================================
-          BOTTOM FADE
-      =================================================== */}
-
-      <div
-        className="
-          pointer-events-none
-          absolute
-          bottom-0
-          left-0
-          right-0
-          z-20
-          h-32
-          bg-gradient-to-t
-          from-black
-          to-transparent
-        "
+      <motion.div
+        className="fixed left-0 right-0 top-0 z-50 h-px origin-left bg-[#B4FF39]"
+        style={{
+          scaleX: scrollYProgress,
+        }}
       />
     </section>
   );
