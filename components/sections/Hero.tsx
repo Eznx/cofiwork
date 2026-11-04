@@ -26,7 +26,7 @@ export default function Hero() {
             Experiencias digitales con presencia, personalidad y una razón clara para ser elegidas. Estrategia, identidad, tecnología e interacción en un sistema propio.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-5">
-            <Link href="#proyectos" className="group inline-flex items-center gap-4 rounded-full border border-[#b4ff39]/55 bg-[#b4ff39] px-6 py-3.5 text-sm font-semibold text-[#07100b] shadow-[0_0_38px_rgba(180,255,57,.12)] transition hover:shadow-[0_0_48px_rgba(180,255,57,.27)]">
+            <Link href="#proyectos" className="group inline-flex items-center gap-4 rounded-full border border-[#b4ff39]/55 bg-[#b4ff39] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_0_38px_rgba(180,255,57,.12)] transition hover:shadow-[0_0_48px_rgba(180,255,57,.27)]" style={{ textShadow: '0 0 2px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.6)' }}>
               Explorar proyectos <span className="transition-transform group-hover:translate-x-1">↗</span>
             </Link>
             <span className="text-xs tracking-wide text-white/35">Una idea. Un lenguaje. Una experiencia.</span>
