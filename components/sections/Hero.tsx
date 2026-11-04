@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import Link from 'next/link';
+import AnchorLink from '@/components/ui/AnchorLink';
 
 export default function Hero() {
   return (
@@ -26,17 +26,17 @@ export default function Hero() {
             Experiencias digitales con presencia, personalidad y una razón clara para ser elegidas. Estrategia, identidad, tecnología e interacción en un sistema propio.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-5">
-            <Link href="#proyectos" className="group inline-flex items-center gap-4 rounded-full border border-[#b4ff39]/55 bg-[#b4ff39] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_0_38px_rgba(180,255,57,.12)] transition hover:shadow-[0_0_48px_rgba(180,255,57,.27)]" style={{ textShadow: '0 0 2px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.6)' }}>
+            <AnchorLink href="#proyectos" className="group inline-flex items-center gap-4 rounded-full border border-[#b4ff39]/55 bg-[#b4ff39] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_0_38px_rgba(180,255,57,.12)] transition hover:shadow-[0_0_48px_rgba(180,255,57,.27)]" style={{ textShadow: '0 0 2px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.6)' }}>
               Explorar proyectos <span className="transition-transform group-hover:translate-x-1">↗</span>
-            </Link>
+            </AnchorLink>
             <span className="text-xs tracking-wide text-white/35">Una idea. Un lenguaje. Una experiencia.</span>
           </div>
         </div>
       </div>
 
-      <a href="#enfoque" aria-label="Desplazarse para explorar" className="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-3 text-[9px] uppercase tracking-[0.3em] text-white/40">
+      <AnchorLink href="#enfoque" aria-label="Desplazarse para explorar" className="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-3 text-[9px] uppercase tracking-[0.3em] text-white/40">
         Explorar <span className="h-9 w-px bg-gradient-to-b from-[#b4ff39]/80 to-transparent" />
-      </a>
+      </AnchorLink>
     </section>
   );
 }

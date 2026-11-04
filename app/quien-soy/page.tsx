@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
+import AnchorLink from '@/components/ui/AnchorLink';
 
 export default function QuienSoyPage() {
   return (
@@ -15,7 +15,7 @@ export default function QuienSoyPage() {
             <div>
               <p className="text-lg leading-relaxed text-white/65 sm:text-xl">Trabajo de forma directa con cada marca para entender su idea, darle una dirección clara y convertirla en una web que se sienta propia.</p>
               <p className="mt-5 leading-relaxed text-white/45">Estrategia, diseño y desarrollo forman parte de una misma conversación. Así, cada decisión tiene un porqué y cada proyecto encuentra su manera de conectar.</p>
-              <Link href="/#contacto" className="mt-8 inline-flex items-center gap-3 border-b border-[#a6f5dd]/30 pb-2 text-sm font-medium transition hover:border-[#a6f5dd]">Hablemos de tu idea <span aria-hidden="true">↗</span></Link>
+              <AnchorLink href="/#contacto" className="mt-8 inline-flex items-center gap-3 border-b border-[#a6f5dd]/30 pb-2 text-sm font-medium transition hover:border-[#a6f5dd]">Hablemos de tu idea <span aria-hidden="true">↗</span></AnchorLink>
             </div>
           </div>
         </div>

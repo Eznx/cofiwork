@@ -2,7 +2,6 @@
 
 import { useRef } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import type { PointerEvent } from 'react';
 import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion';
 import { WA_URL } from '@/lib/constants';
@@ -51,9 +50,9 @@ export default function Introduction() {
           <p className="mt-4 max-w-lg leading-relaxed text-white/40">
             Estrategia, identidad y desarrollo en el mismo proceso. Cada detalle tiene un motivo; cada proyecto, su propio lenguaje.
           </p>
-          <Link href={WA_URL} target="_blank" rel="noopener noreferrer" className="group mt-8 inline-flex items-center gap-4 border-b border-[#a6f5dd]/30 pb-2 text-sm text-[#d8e7df] transition hover:border-[#b4ff39] hover:text-[#b4ff39]">
+          <a href={WA_URL} target="_blank" rel="noopener noreferrer" className="group mt-8 inline-flex items-center gap-4 border-b border-[#a6f5dd]/30 pb-2 text-sm text-[#d8e7df] transition hover:border-[#b4ff39] hover:text-[#b4ff39]">
             Hablemos de tu proyecto <span className="transition-transform group-hover:translate-x-1">↗</span>
-          </Link>
+          </a>
         </motion.div>
 
         <motion.div

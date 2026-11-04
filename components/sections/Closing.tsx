@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { WA_URL } from '@/lib/constants';
 
 export default function Closing() {
@@ -11,7 +10,9 @@ export default function Closing() {
           <p className="eyebrow text-[#a6f5dd]/65">El próximo paso</p>
           <h2 className="mt-4 max-w-3xl text-4xl font-medium leading-tight tracking-[-0.055em] sm:text-6xl">Hagamos que tu marca ocupe su lugar.</h2>
         </div>
-        <Link href={WA_URL} target="_blank" rel="noopener noreferrer" className="relative inline-flex w-fit shrink-0 items-center gap-5 rounded-full border border-[#b4ff39]/50 bg-[#b4ff39] px-6 py-4 text-sm font-semibold text-[#07100b] shadow-[0_0_35px_rgba(180,255,57,.13)] transition hover:shadow-[0_0_45px_rgba(180,255,57,.28)]">Contame tu idea <span aria-hidden="true">↗</span></Link>
+        <a href={WA_URL} target="_blank" rel="noopener noreferrer" className="relative inline-flex w-fit shrink-0 items-center gap-5 rounded-full border border-[#b4ff39]/50 bg-[#b4ff39] px-6 py-4 text-sm font-semibold text-white shadow-[0_0_35px_rgba(180,255,57,.13)] transition hover:shadow-[0_0_45px_rgba(180,255,57,.28)]" style={{ textShadow: '0 0 2px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.6)' }}>
+  Contame tu idea <span aria-hidden="true">↗</span>
+</a>
       </div>
     </section>
   );
