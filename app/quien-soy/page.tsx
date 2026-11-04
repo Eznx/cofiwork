@@ -1,52 +1,26 @@
-﻿'use client';
-import { motion } from 'framer-motion';
-
-const jetonEase = [0.16, 1, 0.3, 1] as [number, number, number, number];
-const fadeUp = {
-  initial: { opacity: 0, y: 30 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, margin: "-80px" },
-  transition: { duration: 0.55, ease: jetonEase },
-};
+import Link from 'next/link';
+import Navbar from '@/components/layout/Navbar';
+import Footer from '@/components/layout/Footer';
 
 export default function QuienSoyPage() {
   return (
-    <main className="min-h-screen bg-black text-white pt-32 pb-28">
-      <div className="max-w-4xl mx-auto px-5 sm:px-6">
-        <motion.div {...fadeUp} className="mb-12 text-center">
-          <p className="font-mono text-[#B4FF39]/70 text-xs uppercase tracking-[0.3em] mb-4">
-            COFIWORK / SOBRE MÍ
-          </p>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-[-0.04em] mb-6">
-            Soy <span className="text-[#B4FF39]">Nicolás Ezequiel Lombardo</span>
-          </h1>
-        </motion.div>
-
-        <motion.div {...fadeUp} transition={{ delay: 0.1 }} className="space-y-6 text-lg leading-relaxed text-white/70">
-          <p>
-            Diseño y desarrollo webs pensadas para que tu negocio se vea profesional,
-            se entienda claro y atraiga clientes. No uso plantillas: cada página se
-            construye desde cero con lo que vos necesitás.
-          </p>
-          <p>
-            Mi enfoque: sitios rápidos, elegantes, que funcionen perfecto en celular
-            y en computadora. Simples de usar y directos al punto.
-          </p>
-          <p>
-            Trabajo cerca, hablamos claro y vamos ajustando todo hasta que estés
-            conforme.
-          </p>
-        </motion.div>
-
-        <motion.div {...fadeUp} transition={{ delay: 0.2 }} className="mt-12 text-center">
-          <a
-            href="/servicios"
-            className="inline-flex items-center gap-2 bg-[#B4FF39] text-black px-8 py-3 rounded-full font-bold hover:shadow-[0_0_30px_rgba(180,255,57,0.25)] transition-all duration-300"
-          >
-            Ver cómo trabajamos →
-          </a>
-        </motion.div>
-      </div>
+    <main className="relative min-h-screen overflow-hidden bg-[#07090b] pt-32 text-[#f2f4ee] sm:pt-40">
+      <Navbar />
+      <section className="relative isolate px-6 pb-24 sm:px-10 lg:pb-36">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-20 top-0 h-[36rem] w-[36rem] rounded-full bg-[#176653]/15 blur-[130px]" />
+        <div className="relative mx-auto max-w-7xl">
+          <p className="eyebrow">Detrás de COFIWORK</p>
+          <div className="mt-8 grid gap-10 md:grid-cols-[1fr_0.8fr] md:items-end md:gap-20">
+            <h1 className="text-5xl font-medium leading-[0.95] tracking-[-0.065em] sm:text-7xl">Soy Nicolás. Diseño experiencias digitales con identidad propia.</h1>
+            <div>
+              <p className="text-lg leading-relaxed text-white/65 sm:text-xl">Trabajo de forma directa con cada marca para entender su idea, darle una dirección clara y convertirla en una web que se sienta propia.</p>
+              <p className="mt-5 leading-relaxed text-white/45">Estrategia, diseño y desarrollo forman parte de una misma conversación. Así, cada decisión tiene un porqué y cada proyecto encuentra su manera de conectar.</p>
+              <Link href="/#contacto" className="mt-8 inline-flex items-center gap-3 border-b border-[#a6f5dd]/30 pb-2 text-sm font-medium transition hover:border-[#a6f5dd]">Hablemos de tu idea <span aria-hidden="true">↗</span></Link>
+            </div>
+          </div>
+        </div>
+      </section>
+      <Footer />
     </main>
   );
 }

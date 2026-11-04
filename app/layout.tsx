@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Diseño de páginas web para negocios",
+  title: "COFIWORK — Experiencias digitales con identidad propia",
   description:
-    "Creo páginas web profesionales para negocios y me encargo de todo el proceso, desde el diseño hasta la publicación.",
+    "Estrategia, identidad, tecnología e interacción para crear experiencias digitales que le dan a cada marca una razón clara para ser elegida.",
 };
 
 export default function RootLayout({
